@@ -157,6 +157,7 @@ class _SignupFormState extends State<_SignupForm> {
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
+    final state = AppStateScope.of(context);
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -208,8 +209,14 @@ class _SignupFormState extends State<_SignupForm> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (!_formKey.currentState!.validate()) return;
+                await state.authController.register(
+                  name: _name.text,
+                  email: _email.text,
+                  password: _password.text,
+                );
+                await state.persistAuth(loggedIn: true);
                 widget.onContinue();
               },
               child: Text(strings.t('signup')),

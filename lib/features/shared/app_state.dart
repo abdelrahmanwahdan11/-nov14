@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../app/localization.dart';
 import '../../data/models/catalog_item.dart';
 import '../../data/repositories/catalog_repository.dart';
+import '../profile/profile_controller.dart';
 
 class AppBootstrap extends StatelessWidget {
   const AppBootstrap({super.key, required this.child});
@@ -55,7 +56,10 @@ class AppState extends ChangeNotifier {
     required Locale locale,
   })  : _prefs = prefs,
         _locale = locale,
-        catalogController = CatalogController(CatalogRepository());
+        catalogController = CatalogController(CatalogRepository()) {
+    profileController = ProfileController(prefs: prefs);
+    authController = AuthController(profileController: profileController);
+  }
 
   final SharedPreferences _prefs;
   final ThemeController themeController;
@@ -63,7 +67,8 @@ class AppState extends ChangeNotifier {
   Locale get locale => _locale;
 
   final CatalogController catalogController;
-  final AuthController authController = AuthController();
+  late final AuthController authController;
+  late final ProfileController profileController;
 
   void updateLocale(Locale locale) {
     _locale = locale;
@@ -86,9 +91,21 @@ class AppState extends ChangeNotifier {
   Future<void> setOnboardingSeen() async {
     await _prefs.setBool('onboarding_seen', true);
   }
+
+  @override
+  void dispose() {
+    catalogController.dispose();
+    authController.dispose();
+    profileController.dispose();
+    super.dispose();
+  }
 }
 
 class AuthController extends ChangeNotifier {
+  AuthController({required ProfileController profileController})
+      : _profileController = profileController;
+
+  final ProfileController _profileController;
   bool _loggedIn = false;
   bool _guest = false;
 
@@ -98,12 +115,26 @@ class AuthController extends ChangeNotifier {
   Future<void> login(String email, String password) async {
     _loggedIn = true;
     _guest = false;
+    _profileController.recordLogin(method: 'password', device: 'Mobile');
     notifyListeners();
   }
 
   Future<void> guestLogin() async {
     _loggedIn = true;
     _guest = true;
+    _profileController.recordLogin(method: 'guest', device: 'Mobile', successful: true);
+    notifyListeners();
+  }
+
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    _loggedIn = true;
+    _guest = false;
+    _profileController.completeRegistration(name: name, email: email);
+    _profileController.recordLogin(method: 'register', device: 'Mobile', successful: true);
     notifyListeners();
   }
 
