@@ -55,6 +55,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final data = _onboardingData;
     final current = data[_index];
     final chips = _onboardingChips.map(strings.t).toList();
+    final media = MediaQuery.of(context);
+    final reservedSpace = media.viewPadding.bottom + 12;
 
     return Scaffold(
       body: AnimatedContainer(
@@ -69,62 +71,77 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
         child: Stack(
           children: [
-            PageView.builder(
-              controller: _controller,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: (index) {
-                setState(() => _index = index);
-                _startAuto();
-              },
-              itemCount: data.length,
-              itemBuilder: (context, index) {
-                return _OnboardingSlide(
-                  data: data[index],
-                  chips: chips,
-                );
-              },
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: PinnedControllerBar(
-                index: _index,
-                length: data.length,
-                onNext: () {
-                  if (_index == data.length - 1) {
-                    _finish(context);
-                  } else {
-                    _controller.nextPage(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeInOut,
-                    );
-                  }
+            Padding(
+              padding: EdgeInsets.only(bottom: reservedSpace),
+              child: PageView.builder(
+                controller: _controller,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (index) {
+                  setState(() => _index = index);
+                  _startAuto();
                 },
-                onPrev: () => _controller.previousPage(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeInOut,
-                ),
-                onSkip: () => _finish(context),
+                itemCount: data.length,
+                itemBuilder: (context, index) {
+                  return _OnboardingSlide(
+                    data: data[index],
+                    chips: chips,
+                  );
+                },
               ),
             ),
             Positioned(
-              bottom: 118,
-              left: 24,
-              right: 24,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-                child: ElevatedButton.icon(
-                  key: ValueKey(_index == data.length - 1),
-                  onPressed: () => _finish(context),
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                  label: Text(strings.t(_index == data.length - 1 ? 'startNow' : 'getStarted')),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                    textStyle: Theme.of(context).textTheme.titleMedium,
-                  ),
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                      child: SizedBox(
+                        key: ValueKey(_index == data.length - 1 ? 'cta-finish' : 'cta-next'),
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _finish(context),
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          label: Text(strings.t(_index == data.length - 1 ? 'startNow' : 'getStarted')),
+                          style: ElevatedButton.styleFrom(
+                            textStyle: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    PinnedControllerBar(
+                      index: _index,
+                      length: data.length,
+                      onNext: () {
+                        if (_index == data.length - 1) {
+                          _finish(context);
+                        } else {
+                          _controller.nextPage(
+                            duration: const Duration(milliseconds: 360),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      },
+                      onPrev: () => _controller.previousPage(
+                        duration: const Duration(milliseconds: 360),
+                        curve: Curves.easeInOut,
+                      ),
+                      onSkip: () => _finish(context),
+                    ),
+                  ],
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -151,12 +168,15 @@ class _OnboardingSlide extends StatelessWidget {
     final media = MediaQuery.of(context);
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final spacing = constraints.maxHeight > 640 ? 24.0 : 16.0;
-          return Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTall = constraints.maxHeight > 720;
+        final spacing = isTall ? 24.0 : 16.0;
+        final bottomInset = isTall ? 200.0 : 160.0;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, media.viewPadding.top + 24, 24, bottomInset),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
@@ -234,7 +254,7 @@ class _OnboardingSlide extends StatelessWidget {
             ],
           );
         },
-      ),
+      },
     );
   }
 }

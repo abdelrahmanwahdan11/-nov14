@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 class PinnedControllerBar extends StatelessWidget {
@@ -18,49 +20,109 @@ class PinnedControllerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: DecoratedBox(
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withOpacity(.95),
-            borderRadius: BorderRadius.circular(24),
+            color: scheme.surface.withOpacity(theme.brightness == Brightness.dark ? .82 : .9),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: scheme.outline.withOpacity(.28)),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.shadow.withOpacity(.08),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: index == 0 ? null : onPrev,
-                  icon: const Icon(Icons.chevron_left_rounded),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          child: Row(
+            children: [
+              _ArrowButton(
+                enabled: index != 0,
+                icon: Icons.chevron_left_rounded,
+                onTap: onPrev,
+              ),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(length, (i) {
+                    final isActive = i == index;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeInOut,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 8,
+                      width: isActive ? 18 : 8,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: isActive
+                            ? scheme.primary
+                            : scheme.onSurface.withOpacity(theme.brightness == Brightness.dark ? .25 : .18),
+                      ),
+                    );
+                  }),
                 ),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(length, (i) {
-                      final isActive = i == index;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeInOut,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: isActive ? 16 : 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      );
-                    }),
-                  ),
+              ),
+              _ArrowButton(
+                enabled: index != length - 1,
+                icon: Icons.chevron_right_rounded,
+                onTap: onNext,
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: onSkip,
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.primary,
+                  textStyle: theme.textTheme.labelLarge,
                 ),
-                IconButton(
-                  onPressed: index == length - 1 ? null : onNext,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-                TextButton(onPressed: onSkip, child: Text(MaterialLocalizations.of(context).skipButtonLabel)),
-              ],
+                child: Text(MaterialLocalizations.of(context).skipButtonLabel),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArrowButton extends StatelessWidget {
+  const _ArrowButton({
+    required this.enabled,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final background = enabled
+        ? scheme.primaryContainer.withOpacity(.45)
+        : scheme.onSurface.withOpacity(.07);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(
+              icon,
+              color: enabled ? scheme.onPrimaryContainer : scheme.onSurface.withOpacity(.4),
             ),
           ),
         ),
