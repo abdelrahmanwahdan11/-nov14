@@ -7,6 +7,7 @@ import '../../app/localization.dart';
 import '../../core/widgets/metric_chip.dart';
 import '../../data/models/user_profile.dart';
 import '../shared/app_state.dart';
+import '../insights/performance_insights_page.dart';
 import 'profile_controller.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -114,6 +115,12 @@ class ProfilePage extends StatelessWidget {
                         strings: strings,
                         controller: state.profileController,
                         onLogHydration: (amount) => state.profileController.logHydration(amount),
+                      ),
+                      const SizedBox(height: 20),
+                      _PerformanceInsightsPreview(
+                        strings: strings,
+                        controller: state.profileController,
+                        onTap: () => Navigator.pushNamed(context, PerformanceInsightsPage.route),
                       ),
                       const SizedBox(height: 20),
                       _InbodyHistoryList(strings: strings, controller: state.profileController),
@@ -1136,6 +1143,157 @@ class _HydrationCoachCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PerformanceInsightsPreview extends StatelessWidget {
+  const _PerformanceInsightsPreview({
+    required this.strings,
+    required this.controller,
+    required this.onTap,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final top = controller.topMomentum;
+    final lagging = controller.laggingTrend;
+    final focus = controller.recommendedFocusKey;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primary.withOpacity(.12),
+                theme.colorScheme.primary.withOpacity(.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.insights_rounded, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(strings.t('performanceInsights'), style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                        Text(
+                          strings.t('openInsights'),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: theme.colorScheme.primary),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                controller.overallPerformanceScore.toStringAsFixed(1),
+                style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(strings.t('loadScore'), style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  if (top != null)
+                    _PreviewBadge(
+                      label: strings.t('momentumLeader'),
+                      value: '${top.weekChange >= 0 ? '+' : ''}${top.weekChange.toStringAsFixed(1)}',
+                      accent: theme.colorScheme.primary,
+                      subtitle: strings.t(top.metric),
+                    ),
+                  _PreviewBadge(
+                    label: strings.t('focusOn'),
+                    value: strings.t(focus),
+                    accent: theme.colorScheme.tertiary,
+                  ),
+                  if (lagging != null)
+                    _PreviewBadge(
+                      label: strings.t('laggingPillar'),
+                      value: strings.t(lagging.metric),
+                      accent: theme.colorScheme.error,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewBadge extends StatelessWidget {
+  const _PreviewBadge({
+    required this.label,
+    required this.value,
+    required this.accent,
+    this.subtitle,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: accent.withOpacity(.08),
+        border: Border.all(color: accent.withOpacity(.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ],
       ),
     );
   }

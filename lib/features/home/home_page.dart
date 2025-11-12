@@ -12,6 +12,7 @@ import '../activity/activity_page.dart';
 import '../catalog/catalog_page.dart';
 import '../community/community_page.dart';
 import '../help/help_page.dart';
+import '../insights/performance_insights_page.dart';
 import '../paywall/paywall_page.dart';
 import '../plans/plans_page.dart';
 import '../profile/profile_page.dart';
@@ -379,9 +380,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _ActionCard(
-                            icon: Icons.flash_on_rounded,
-                            label: strings.t('startQuickSession'),
-                            onTap: () => Navigator.pushNamed(context, CatalogPage.route),
+                            icon: Icons.insights_rounded,
+                            label: strings.t('performanceInsights'),
+                            onTap: () => Navigator.pushNamed(context, PerformanceInsightsPage.route),
                           ),
                         ),
                       ],
@@ -391,17 +392,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       children: [
                         Expanded(
                           child: _ActionCard(
-                            icon: Icons.workspace_premium_rounded,
-                            label: strings.t('unlockPro'),
-                            onTap: () => Navigator.pushNamed(context, PaywallPage.route),
+                            icon: Icons.flash_on_rounded,
+                            label: strings.t('startQuickSession'),
+                            onTap: () => Navigator.pushNamed(context, CatalogPage.route),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _ActionCard(
+                            icon: Icons.workspace_premium_rounded,
+                            label: strings.t('unlockPro'),
+                            onTap: () => Navigator.pushNamed(context, PaywallPage.route),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionCard(
                             icon: Icons.help_outline_rounded,
                             label: strings.t('helpCenter'),
                             onTap: () => Navigator.pushNamed(context, HelpPage.route),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.track_changes_outlined,
+                            label: strings.t('activity'),
+                            onTap: () => Navigator.pushNamed(context, ActivityPage.route),
                           ),
                         ),
                       ],

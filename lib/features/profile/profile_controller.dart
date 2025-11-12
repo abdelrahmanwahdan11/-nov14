@@ -29,7 +29,11 @@ class ProfileController extends ChangeNotifier {
         _loginHistory = _seedLoginHistory(prefs.getStringList('user_login_history')),
         _journalEntries = _seedJournalEntries(prefs.getStringList('user_journal_entries')),
         _readiness = _seedReadinessHistory(prefs.getStringList('user_readiness_history')),
-        _hydrationLogs = _seedHydrationLogs(prefs.getStringList('user_hydration_logs'));
+        _hydrationLogs = _seedHydrationLogs(prefs.getStringList('user_hydration_logs')),
+        _performanceTrends =
+            _seedPerformanceTrends(prefs.getStringList('user_performance_trends')),
+        _milestones =
+            _seedPerformanceMilestones(prefs.getStringList('user_performance_milestones'));
 
   final SharedPreferences _prefs;
   UserProfile _profile;
@@ -38,6 +42,8 @@ class ProfileController extends ChangeNotifier {
   final List<ProfileJournalEntry> _journalEntries;
   final List<ReadinessSnapshot> _readiness;
   final List<HydrationLog> _hydrationLogs;
+  final List<PerformanceTrend> _performanceTrends;
+  final List<PerformanceMilestone> _milestones;
 
   UserProfile get profile => _profile;
   List<InbodyMeasurement> get inbodyHistory => List.unmodifiable(_inbodyHistory);
@@ -45,6 +51,45 @@ class ProfileController extends ChangeNotifier {
   List<ProfileJournalEntry> get journalEntries => List.unmodifiable(_journalEntries);
   List<ReadinessSnapshot> get readinessHistory => List.unmodifiable(_readiness);
   List<HydrationLog> get hydrationLogs => List.unmodifiable(_hydrationLogs);
+  List<PerformanceTrend> get performanceTrends => List.unmodifiable(_performanceTrends);
+  List<PerformanceMilestone> get performanceMilestones => List.unmodifiable(_milestones);
+
+  PerformanceTrend? get topMomentum {
+    if (_performanceTrends.isEmpty) return null;
+    return _performanceTrends.reduce(
+      (best, trend) => trend.weekChange > best.weekChange ? trend : best,
+    );
+  }
+
+  PerformanceTrend? get laggingTrend {
+    if (_performanceTrends.isEmpty) return null;
+    return _performanceTrends.reduce(
+      (worst, trend) => trend.weekChange < worst.weekChange ? trend : worst,
+    );
+  }
+
+  double get overallPerformanceScore {
+    if (_performanceTrends.isEmpty) return 0;
+    final sum = _performanceTrends.fold<double>(
+      0,
+      (value, trend) => value + (trend.points.isEmpty ? 0 : trend.points.first.value),
+    );
+    return double.parse((sum / _performanceTrends.length).toStringAsFixed(1));
+  }
+
+  double get momentumScore {
+    if (_performanceTrends.isEmpty) return 0;
+    final sum = _performanceTrends.fold<double>(0, (value, trend) => value + trend.weekChange);
+    return double.parse((sum / _performanceTrends.length).toStringAsFixed(1));
+  }
+
+  String get recommendedFocusKey {
+    final lagging = laggingTrend;
+    if (lagging == null) {
+      return 'mobility';
+    }
+    return lagging.metric;
+  }
 
   InbodyMeasurement? get latestMeasurement => _inbodyHistory.isEmpty ? null : _inbodyHistory.first;
   ProfileJournalEntry? get latestJournal => _journalEntries.isEmpty ? null : _journalEntries.first;
@@ -170,6 +215,54 @@ class ProfileController extends ChangeNotifier {
       _hydrationLogs.removeLast();
     }
     _persistHydration();
+    notifyListeners();
+  }
+
+  void addTrainingSample({required String metric, required double score}) {
+    final index = _performanceTrends.indexWhere((trend) => trend.metric == metric);
+    if (index == -1) return;
+    final sanitizedScore = double.parse(score.toStringAsFixed(1));
+    final today = TrendPoint(date: DateTime.now(), value: sanitizedScore);
+    final combined = [today, ..._performanceTrends[index].points];
+    combined.sort((a, b) => b.date.compareTo(a.date));
+    final truncated = combined.take(14).toList();
+    final latest = truncated.first.value;
+    final previous = truncated.length > 1 ? truncated[1].value : latest;
+    final monthBaseline = truncated.length > 7 ? truncated[7].value : truncated.last.value;
+    final updated = _performanceTrends[index].copyWith(
+      points: truncated,
+      weekChange: double.parse((latest - previous).toStringAsFixed(1)),
+      monthChange: double.parse((latest - monthBaseline).toStringAsFixed(1)),
+      lastUpdated: DateTime.now(),
+    );
+    _performanceTrends[index] = updated;
+    _persistPerformanceTrends();
+    notifyListeners();
+    if (sanitizedScore >= 92) {
+      completeNextMilestone();
+    }
+  }
+
+  void completeMilestone(String id) {
+    final index = _milestones.indexWhere((milestone) => milestone.id == id);
+    if (index == -1) return;
+    if (_milestones[index].achieved) return;
+    _milestones[index] = _milestones[index].copyWith(
+      achieved: true,
+      achievedOn: DateTime.now(),
+    );
+    _persistPerformanceMilestones();
+    notifyListeners();
+  }
+
+  void completeNextMilestone() {
+    final index = _milestones.indexWhere((milestone) => !milestone.achieved);
+    if (index == -1) return;
+    _milestones[index] = _milestones[index].copyWith(
+      achieved: true,
+      achievedOn: DateTime.now(),
+    );
+    _persistPerformanceMilestones();
     notifyListeners();
   }
 
@@ -392,6 +485,116 @@ class ProfileController extends ChangeNotifier {
     });
   }
 
+  static List<PerformanceTrend> _seedPerformanceTrends(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      final seeded = <PerformanceTrend>[];
+      for (final entry in cache) {
+        final parts = entry.split('|');
+        if (parts.length < 5) continue;
+        final metric = parts[0];
+        final week = double.tryParse(parts[1]) ?? 0;
+        final month = double.tryParse(parts[2]) ?? 0;
+        final lastUpdated = DateTime.tryParse(parts[3]) ?? DateTime.now();
+        final points = parts[4]
+            .split(';')
+            .where((segment) => segment.isNotEmpty)
+            .map((segment) {
+          final pointParts = segment.split(',');
+          if (pointParts.length != 2) return null;
+          return TrendPoint(
+            date: DateTime.tryParse(pointParts[0]) ?? DateTime.now(),
+            value: double.tryParse(pointParts[1]) ?? 0,
+          );
+        }).whereType<TrendPoint>().toList();
+        seeded.add(
+          PerformanceTrend(
+            metric: metric,
+            points: points,
+            weekChange: week,
+            monthChange: month,
+            lastUpdated: lastUpdated,
+          ),
+        );
+      }
+      if (seeded.isNotEmpty) {
+        return seeded;
+      }
+    }
+    final now = DateTime.now();
+    PerformanceTrend buildTrend(String metric, List<double> values) {
+      final points = List.generate(values.length, (index) {
+        final date = now.subtract(Duration(days: index * 2));
+        return TrendPoint(date: date, value: values[index]);
+      });
+      final latest = values.first;
+      final previous = values.length > 1 ? values[1] : latest;
+      final monthBaseline = values.length > 6 ? values[6] : values.last;
+      return PerformanceTrend(
+        metric: metric,
+        points: points,
+        weekChange: double.parse((latest - previous).toStringAsFixed(1)),
+        monthChange: double.parse((latest - monthBaseline).toStringAsFixed(1)),
+        lastUpdated: now.subtract(const Duration(hours: 2)),
+      );
+    }
+
+    return [
+      buildTrend('strength', [92.4, 91.8, 91.1, 90.6, 90.2, 89.4, 88.7]),
+      buildTrend('endurance', [88.3, 87.9, 87.4, 87.0, 86.5, 86.1, 85.5]),
+      buildTrend('mobility', [84.8, 84.2, 83.9, 83.4, 83.0, 82.7, 82.0]),
+    ];
+  }
+
+  static List<PerformanceMilestone> _seedPerformanceMilestones(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      final seeded = <PerformanceMilestone>[];
+      for (final entry in cache) {
+        final parts = entry.split('|');
+        if (parts.length < 7) continue;
+        seeded.add(
+          PerformanceMilestone(
+            id: parts[0],
+            title: parts[1],
+            description: parts[2],
+            scheduledFor: DateTime.tryParse(parts[3]) ?? DateTime.now(),
+            badge: parts[4],
+            achieved: parts[5] == '1',
+            achievedOn: parts[6].isEmpty ? null : DateTime.tryParse(parts[6]),
+          ),
+        );
+      }
+      if (seeded.isNotEmpty) {
+        return seeded;
+      }
+    }
+    final now = DateTime.now();
+    return [
+      PerformanceMilestone(
+        id: 'milestone_strength_elite',
+        title: 'Strength elite 95',
+        description: 'Hold a rolling strength score above 95 for a full week.',
+        scheduledFor: now.add(const Duration(days: 10)),
+        badge: 'ELITE',
+      ),
+      PerformanceMilestone(
+        id: 'milestone_endurance_pr',
+        title: 'Endurance PR',
+        description: 'Log a sub-24 minute 5K with steady heart rate control.',
+        scheduledFor: now.add(const Duration(days: 17)),
+        badge: 'PR',
+      ),
+      PerformanceMilestone(
+        id: 'milestone_mobility_flow',
+        title: 'Mobility flow streak',
+        description: 'Complete six guided mobility flows this month.',
+        scheduledFor: now.subtract(const Duration(days: 3)),
+        badge: 'FLOW',
+        achieved: true,
+        achievedOn: now.subtract(const Duration(days: 1)),
+      ),
+    ];
+  }
+
   void _persistProfile() {
     _prefs
       ..setString('user_displayName', _profile.name)
@@ -531,6 +734,47 @@ class ProfileController extends ChangeNotifier {
             (e) => [
                   e.date.toIso8601String(),
                   e.liters.toStringAsFixed(2),
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistPerformanceTrends() {
+    _prefs.setStringList(
+      'user_performance_trends',
+      _performanceTrends
+          .map(
+            (e) => [
+                  e.metric,
+                  e.weekChange.toStringAsFixed(1),
+                  e.monthChange.toStringAsFixed(1),
+                  e.lastUpdated.toIso8601String(),
+                  e.points
+                      .map(
+                        (point) =>
+                            '${point.date.toIso8601String()},${point.value.toStringAsFixed(1)}',
+                      )
+                      .join(';'),
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistPerformanceMilestones() {
+    _prefs.setStringList(
+      'user_performance_milestones',
+      _milestones
+          .map(
+            (e) => [
+                  e.id,
+                  e.title,
+                  e.description,
+                  e.scheduledFor.toIso8601String(),
+                  e.badge,
+                  e.achieved ? '1' : '0',
+                  e.achievedOn?.toIso8601String() ?? '',
                 ].join('|'),
           )
           .toList(),

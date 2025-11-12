@@ -158,3 +158,80 @@ class HydrationLog {
   final DateTime date;
   final double liters;
 }
+
+class PerformanceTrend {
+  const PerformanceTrend({
+    required this.metric,
+    required this.points,
+    required this.weekChange,
+    required this.monthChange,
+    required this.lastUpdated,
+  });
+
+  final String metric;
+  final List<TrendPoint> points;
+  final double weekChange;
+  final double monthChange;
+  final DateTime lastUpdated;
+
+  PerformanceTrend copyWith({
+    List<TrendPoint>? points,
+    double? weekChange,
+    double? monthChange,
+    DateTime? lastUpdated,
+  }) {
+    return PerformanceTrend(
+      metric: metric,
+      points: points ?? this.points,
+      weekChange: weekChange ?? this.weekChange,
+      monthChange: monthChange ?? this.monthChange,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+}
+
+class TrendPoint {
+  const TrendPoint({
+    required this.date,
+    required this.value,
+  });
+
+  final DateTime date;
+  final double value;
+}
+
+class PerformanceMilestone {
+  const PerformanceMilestone({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.scheduledFor,
+    required this.badge,
+    this.achieved = false,
+    this.achievedOn,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final DateTime scheduledFor;
+  final String badge;
+  final bool achieved;
+  final DateTime? achievedOn;
+
+  PerformanceMilestone copyWith({
+    bool? achieved,
+    DateTime? achievedOn,
+    DateTime? scheduledFor,
+  }) {
+    return PerformanceMilestone(
+      id: id,
+      title: title,
+      description: description,
+      scheduledFor: scheduledFor ?? this.scheduledFor,
+      badge: badge,
+      achieved: achieved ?? this.achieved,
+      achievedOn: achievedOn ?? this.achievedOn,
+    );
+  }
+}

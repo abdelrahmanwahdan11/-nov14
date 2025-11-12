@@ -9,6 +9,7 @@ import '../features/activity/activity_page.dart';
 import '../features/community/community_page.dart';
 import '../features/help/help_page.dart';
 import '../features/home/home_page.dart';
+import '../features/insights/performance_insights_page.dart';
 import '../features/onboarding/onboarding_page.dart';
 import '../features/paywall/paywall_page.dart';
 import '../features/plans/plans_page.dart';
@@ -48,6 +49,9 @@ class AppRouter {
         break;
       case PaywallPage.route:
         builder = const PaywallPage();
+        break;
+      case PerformanceInsightsPage.route:
+        builder = const PerformanceInsightsPage();
         break;
       case ProfilePage.route:
         builder = const ProfilePage();
