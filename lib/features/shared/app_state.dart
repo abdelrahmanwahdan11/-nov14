@@ -28,10 +28,14 @@ class AppBootstrap extends StatelessWidget {
           seed: Color(prefs.getInt('theme_primaryColor') ?? const Color(0xFF4C6EF5).value),
         );
         final localeCode = prefs.getString('locale_code') ?? 'ar';
+        final loggedIn = prefs.getBool('auth_isLoggedIn') ?? false;
+        final guest = prefs.getBool('auth_isGuest') ?? false;
         final appState = AppState(
           prefs: prefs,
           themeController: themeController,
           locale: Locale(localeCode),
+          initialLoggedIn: loggedIn,
+          initialGuest: guest,
         );
         return AppStateScope(state: appState, child: child);
       },
@@ -54,11 +58,17 @@ class AppState extends ChangeNotifier {
     required SharedPreferences prefs,
     required this.themeController,
     required Locale locale,
+    bool initialLoggedIn = false,
+    bool initialGuest = false,
   })  : _prefs = prefs,
         _locale = locale,
         catalogController = CatalogController(CatalogRepository()) {
     profileController = ProfileController(prefs: prefs);
-    authController = AuthController(profileController: profileController);
+    authController = AuthController(
+      profileController: profileController,
+      loggedIn: initialLoggedIn,
+      guest: initialGuest,
+    );
   }
 
   final SharedPreferences _prefs;
@@ -102,12 +112,17 @@ class AppState extends ChangeNotifier {
 }
 
 class AuthController extends ChangeNotifier {
-  AuthController({required ProfileController profileController})
-      : _profileController = profileController;
+  AuthController({
+    required ProfileController profileController,
+    bool loggedIn = false,
+    bool guest = false,
+  })  : _profileController = profileController,
+        _loggedIn = loggedIn,
+        _guest = guest;
 
   final ProfileController _profileController;
-  bool _loggedIn = false;
-  bool _guest = false;
+  bool _loggedIn;
+  bool _guest;
 
   bool get isLoggedIn => _loggedIn;
   bool get isGuest => _guest;

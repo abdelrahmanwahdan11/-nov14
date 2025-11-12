@@ -21,6 +21,7 @@ import '../search/search_page.dart';
 import '../shared/app_state.dart';
 import '../train/train_page.dart';
 import '../wellness/wellness_studio_page.dart';
+import '../settings/settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -158,6 +159,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Text(strings.t('home')),
               ),
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => Navigator.pushNamed(context, SettingsPage.route),
+                ),
                 IconButton(
                   icon: const Icon(Icons.search_rounded),
                   onPressed: () => Navigator.pushNamed(context, SearchPage.route),
