@@ -35,7 +35,7 @@ class _FitProAppState extends State<FitProApp> {
               themeMode: themeController.mode,
               locale: state.locale,
               supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: AppLocalizations.delegates,
               onGenerateRoute: AppRouter.onGenerate,
               builder: (context, child) {
                 final strings = AppLocalizations.of(context);

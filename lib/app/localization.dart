@@ -13,8 +13,10 @@ class AppLocalizations {
 
   static const supportedLocales = [Locale('ar'), Locale('en')];
 
-  static const localizationsDelegates = [
-    _AppLocalizationsDelegate(),
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+
+  static const List<LocalizationsDelegate<dynamic>> delegates = [
+    delegate,
     GlobalMaterialLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
     GlobalWidgetsLocalizations.delegate,
@@ -28,6 +30,10 @@ class AppLocalizations {
 
   static AppLocalizations of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
+  }
+
+  static AppLocalizations? maybeOf(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
   String t(String key) => _strings[key] ?? key;
