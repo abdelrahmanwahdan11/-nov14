@@ -144,6 +144,26 @@ class _AuthFlowState extends State<AuthFlow> with SingleTickerProviderStateMixin
           ),
         ),
         const SizedBox(height: 24),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: isWide ? 48 : 24),
+          child: ValueListenableBuilder<int>(
+            valueListenable: _indexNotifier,
+            builder: (context, index, _) {
+              final stage = _stages[index];
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                child: _StageDetailWrap(
+                  key: ValueKey(stage.tabKey),
+                  stage: stage,
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
         Expanded(
           child: Padding(
             padding: EdgeInsets.fromLTRB(isWide ? 48 : 16, 0, isWide ? 48 : 16, isWide ? 48 : 24),
@@ -592,6 +612,7 @@ class _AuthStageConfig {
     required this.accent,
     required this.icon,
     required this.highlights,
+    required this.details,
   });
 
   final String tabKey;
@@ -601,6 +622,105 @@ class _AuthStageConfig {
   final Color accent;
   final IconData icon;
   final List<String> highlights;
+  final List<_AuthStageDetail> details;
+}
+
+class _AuthStageDetail {
+  const _AuthStageDetail({
+    required this.icon,
+    required this.titleKey,
+    required this.bodyKey,
+  });
+
+  final IconData icon;
+  final String titleKey;
+  final String bodyKey;
+}
+
+class _StageDetailWrap extends StatelessWidget {
+  const _StageDetailWrap({super.key, required this.stage});
+
+  final _AuthStageConfig stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final strings = AppLocalizations.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final double spacing = 18;
+        final bool twoColumn = maxWidth > 720;
+        final double itemWidth = twoColumn ? (maxWidth - spacing) / 2 : maxWidth;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final detail in stage.details)
+              SizedBox(
+                width: itemWidth,
+                child: _StageDetailCard(detail: detail, theme: theme, strings: strings),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _StageDetailCard extends StatelessWidget {
+  const _StageDetailCard({required this.detail, required this.theme, required this.strings});
+
+  final _AuthStageDetail detail;
+  final ThemeData theme;
+  final AppLocalizations strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceVariant =
+        theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? .32 : .65);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        color: surfaceVariant,
+        border: Border.all(color: theme.colorScheme.primary.withOpacity(.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 46,
+            width: 46,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(.15),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(detail.icon, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.t(detail.titleKey),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  strings.t(detail.bodyKey),
+                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 const _stages = [
@@ -612,6 +732,18 @@ const _stages = [
     accent: Color(0xFF4C6EF5),
     icon: Icons.lock_open_rounded,
     highlights: ['authHighlightTraining', 'authHighlightWellness', 'authHighlightCommunity'],
+    details: [
+      _AuthStageDetail(
+        icon: Icons.security_rounded,
+        titleKey: 'authDetailLoginSecurityTitle',
+        bodyKey: 'authDetailLoginSecuritySubtitle',
+      ),
+      _AuthStageDetail(
+        icon: Icons.timeline_rounded,
+        titleKey: 'authDetailLoginHistoryTitle',
+        bodyKey: 'authDetailLoginHistorySubtitle',
+      ),
+    ],
   ),
   _AuthStageConfig(
     tabKey: 'signup',
@@ -621,6 +753,18 @@ const _stages = [
     accent: Color(0xFF22C55E),
     icon: Icons.person_add_alt_1_rounded,
     highlights: ['authHighlightWellness', 'authHighlightCommunity', 'authHighlightTraining'],
+    details: [
+      _AuthStageDetail(
+        icon: Icons.badge_rounded,
+        titleKey: 'authDetailSignupProfileTitle',
+        bodyKey: 'authDetailSignupProfileSubtitle',
+      ),
+      _AuthStageDetail(
+        icon: Icons.palette_rounded,
+        titleKey: 'authDetailSignupPreferencesTitle',
+        bodyKey: 'authDetailSignupPreferencesSubtitle',
+      ),
+    ],
   ),
   _AuthStageConfig(
     tabKey: 'forgotPassword',
@@ -630,6 +774,18 @@ const _stages = [
     accent: Color(0xFFF97316),
     icon: Icons.refresh_rounded,
     highlights: ['authHighlightTraining', 'authHighlightCommunity', 'authHighlightWellness'],
+    details: [
+      _AuthStageDetail(
+        icon: Icons.lightbulb_rounded,
+        titleKey: 'authDetailForgotGuidanceTitle',
+        bodyKey: 'authDetailForgotGuidanceSubtitle',
+      ),
+      _AuthStageDetail(
+        icon: Icons.support_agent_rounded,
+        titleKey: 'authDetailForgotSupportTitle',
+        bodyKey: 'authDetailForgotSupportSubtitle',
+      ),
+    ],
   ),
   _AuthStageConfig(
     tabKey: 'verifyCode',
@@ -639,6 +795,18 @@ const _stages = [
     accent: Color(0xFF8B5CF6),
     icon: Icons.verified_rounded,
     highlights: ['authHighlightWellness', 'authHighlightTraining', 'authHighlightCommunity'],
+    details: [
+      _AuthStageDetail(
+        icon: Icons.shield_rounded,
+        titleKey: 'authDetailVerifyProtectionTitle',
+        bodyKey: 'authDetailVerifyProtectionSubtitle',
+      ),
+      _AuthStageDetail(
+        icon: Icons.devices_rounded,
+        titleKey: 'authDetailVerifyDevicesTitle',
+        bodyKey: 'authDetailVerifyDevicesSubtitle',
+      ),
+    ],
   ),
 ];
 

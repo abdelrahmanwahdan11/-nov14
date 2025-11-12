@@ -17,27 +17,36 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> {
+class _OnboardingPageState extends State<OnboardingPage>
+    with SingleTickerProviderStateMixin {
   late final PageController _controller;
   int _index = 0;
   Timer? _timer;
+  late final AnimationController _progressController;
 
   @override
   void initState() {
     super.initState();
     _controller = PageController();
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+    _progressController.forward();
     _startAuto();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _progressController.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   void _startAuto() {
     _timer?.cancel();
+    _progressController.forward(from: 0);
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || !_controller.hasClients) return;
       final next = (_index + 1) % _onboardingData.length;
@@ -87,6 +96,33 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     chips: chips,
                   );
                 },
+              ),
+            ),
+            Positioned(
+              left: 24,
+              right: 24,
+              top: 0,
+              child: SafeArea(
+                bottom: false,
+                minimum: const EdgeInsets.only(top: 28),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: AnimatedBuilder(
+                    animation: _progressController,
+                    builder: (context, _) {
+                      final theme = Theme.of(context);
+                      return LinearProgressIndicator(
+                        value: _progressController.value,
+                        minHeight: 6,
+                        backgroundColor:
+                            theme.colorScheme.onSurface.withOpacity(.15),
+                        valueColor: AlwaysStoppedAnimation(
+                          theme.colorScheme.primary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
             Positioned(
@@ -150,6 +186,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Future<void> _finish(BuildContext context) async {
     final state = AppStateScope.of(context);
+    _timer?.cancel();
+    _progressController.stop();
     await state.setOnboardingSeen();
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(AuthFlow.route);
@@ -251,6 +289,16 @@ class _OnboardingSlide extends StatelessWidget {
                     ),
                 ],
               ),
+              SizedBox(height: spacing),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: _OnboardingHighlights(
+                  key: ValueKey(data.titleKey),
+                  highlights: data.highlights,
+                ),
+              ),
             ],
           );
         },
@@ -266,6 +314,7 @@ class _OnboardingData {
     required this.image,
     required this.gradientLight,
     required this.gradientDark,
+    required this.highlights,
   });
 
   final String titleKey;
@@ -273,10 +322,99 @@ class _OnboardingData {
   final String image;
   final List<Color> gradientLight;
   final List<Color> gradientDark;
+  final List<_OnboardingHighlight> highlights;
 
   List<Color> gradient(BuildContext context) {
     final theme = Theme.of(context);
     return theme.brightness == Brightness.dark ? gradientDark : gradientLight;
+  }
+}
+
+class _OnboardingHighlight {
+  const _OnboardingHighlight({
+    required this.icon,
+    required this.titleKey,
+    required this.subtitleKey,
+  });
+
+  final IconData icon;
+  final String titleKey;
+  final String subtitleKey;
+}
+
+class _OnboardingHighlights extends StatelessWidget {
+  const _OnboardingHighlights({super.key, required this.highlights});
+
+  final List<_OnboardingHighlight> highlights;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final twoColumn = maxWidth > 640;
+        final itemWidth = twoColumn ? (maxWidth - 16) / 2 : maxWidth;
+
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final highlight in highlights)
+              SizedBox(
+                width: itemWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.16),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.white.withOpacity(.22)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 44,
+                          width: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.22),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Icon(highlight.icon, color: Colors.white),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.t(highlight.titleKey),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                strings.t(highlight.subtitleKey),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -287,6 +425,18 @@ const _onboardingData = [
     image: 'https://images.unsplash.com/photo-1558611848-73f7eb4001a1',
     gradientLight: [Color(0xFFBBD2F3), Color(0xFF4C6EF5)],
     gradientDark: [Color(0xFF0F172A), Color(0xFF334155)],
+    highlights: [
+      _OnboardingHighlight(
+        icon: Icons.auto_graph_rounded,
+        titleKey: 'onboardingHighlightAdaptiveTitle',
+        subtitleKey: 'onboardingHighlightAdaptiveSubtitle',
+      ),
+      _OnboardingHighlight(
+        icon: Icons.timer_rounded,
+        titleKey: 'onboardingHighlightRhythmTitle',
+        subtitleKey: 'onboardingHighlightRhythmSubtitle',
+      ),
+    ],
   ),
   _OnboardingData(
     titleKey: 'onboardingTitle2',
@@ -294,6 +444,18 @@ const _onboardingData = [
     image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438',
     gradientLight: [Color(0xFFDFF4D8), Color(0xFF22C55E)],
     gradientDark: [Color(0xFF1E3A2F), Color(0xFF14532D)],
+    highlights: [
+      _OnboardingHighlight(
+        icon: Icons.water_drop_rounded,
+        titleKey: 'onboardingHighlightWellnessTitle',
+        subtitleKey: 'onboardingHighlightWellnessSubtitle',
+      ),
+      _OnboardingHighlight(
+        icon: Icons.self_improvement_rounded,
+        titleKey: 'onboardingHighlightMindfulTitle',
+        subtitleKey: 'onboardingHighlightMindfulSubtitle',
+      ),
+    ],
   ),
   _OnboardingData(
     titleKey: 'onboardingTitle3',
@@ -301,6 +463,18 @@ const _onboardingData = [
     image: 'https://images.unsplash.com/photo-1526403226-1d7b0aeaa2a1',
     gradientLight: [Color(0xFFFFE1EA), Color(0xFFEC4899)],
     gradientDark: [Color(0xFF3B1F2B), Color(0xFF9D174D)],
+    highlights: [
+      _OnboardingHighlight(
+        icon: Icons.people_alt_rounded,
+        titleKey: 'onboardingHighlightCommunityTitle',
+        subtitleKey: 'onboardingHighlightCommunitySubtitle',
+      ),
+      _OnboardingHighlight(
+        icon: Icons.emoji_events_rounded,
+        titleKey: 'onboardingHighlightCelebrateTitle',
+        subtitleKey: 'onboardingHighlightCelebrateSubtitle',
+      ),
+    ],
   ),
   _OnboardingData(
     titleKey: 'onboardingTitle4',
@@ -308,6 +482,18 @@ const _onboardingData = [
     image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a',
     gradientLight: [Color(0xFFFFDCCB), Color(0xFFF97316)],
     gradientDark: [Color(0xFF3B241F), Color(0xFFC2410C)],
+    highlights: [
+      _OnboardingHighlight(
+        icon: Icons.insights_rounded,
+        titleKey: 'onboardingHighlightInsightsTitle',
+        subtitleKey: 'onboardingHighlightInsightsSubtitle',
+      ),
+      _OnboardingHighlight(
+        icon: Icons.devices_other_rounded,
+        titleKey: 'onboardingHighlightDevicesTitle',
+        subtitleKey: 'onboardingHighlightDevicesSubtitle',
+      ),
+    ],
   ),
 ];
 
