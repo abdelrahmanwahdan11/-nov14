@@ -20,18 +20,39 @@ class ProfileController extends ChangeNotifier {
           lastInbodySync: _restoreDate(prefs.getInt('user_lastInbodyEpoch')),
         ),
         _inbodyHistory = _seedInbodyHistory(prefs.getStringList('user_inbody_history')),
-        _loginHistory = _seedLoginHistory(prefs.getStringList('user_login_history'));
+        _loginHistory = _seedLoginHistory(prefs.getStringList('user_login_history')),
+        _journalEntries = _seedJournalEntries(prefs.getStringList('user_journal_entries'));
 
   final SharedPreferences _prefs;
   UserProfile _profile;
   final List<InbodyMeasurement> _inbodyHistory;
   final List<LoginRecord> _loginHistory;
+  final List<ProfileJournalEntry> _journalEntries;
 
   UserProfile get profile => _profile;
   List<InbodyMeasurement> get inbodyHistory => List.unmodifiable(_inbodyHistory);
   List<LoginRecord> get loginHistory => List.unmodifiable(_loginHistory);
+  List<ProfileJournalEntry> get journalEntries => List.unmodifiable(_journalEntries);
 
   InbodyMeasurement? get latestMeasurement => _inbodyHistory.isEmpty ? null : _inbodyHistory.first;
+  ProfileJournalEntry? get latestJournal => _journalEntries.isEmpty ? null : _journalEntries.first;
+  DateTime? get lastLogin => _loginHistory.isEmpty ? null : _loginHistory.first.timestamp;
+
+  Map<String, int> get loginBreakdownByMethod {
+    final map = <String, int>{};
+    for (final record in _loginHistory) {
+      map.update(record.method, (value) => value + 1, ifAbsent: () => 1);
+    }
+    return map;
+  }
+
+  List<String> get activeDevices {
+    final devices = <String>{};
+    for (final record in _loginHistory) {
+      devices.add(record.device);
+    }
+    return devices.toList()..sort();
+  }
 
   void updateProfile({
     String? name,
@@ -87,6 +108,15 @@ class ProfileController extends ChangeNotifier {
       memberSince: DateTime.now(),
     );
     _persistProfile();
+    notifyListeners();
+  }
+
+  void addJournalEntry(ProfileJournalEntry entry) {
+    _journalEntries.insert(0, entry);
+    if (_journalEntries.length > 20) {
+      _journalEntries.removeLast();
+    }
+    _persistJournal();
     notifyListeners();
   }
 
@@ -149,6 +179,49 @@ class ProfileController extends ChangeNotifier {
     ];
   }
 
+  static List<ProfileJournalEntry> _seedJournalEntries(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 6)
+          .map(
+            (parts) => ProfileJournalEntry(
+              date: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              template: parts[1],
+              energyLevel: int.tryParse(parts[2]) ?? 3,
+              effortLevel: int.tryParse(parts[3]) ?? 3,
+              synced: parts[4] == '1',
+              tags: parts[5].isEmpty ? const [] : parts[5].split(','),
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return [
+      ProfileJournalEntry(
+        date: now.subtract(const Duration(days: 1, hours: 2)),
+        template: 'strength',
+        energyLevel: 4,
+        effortLevel: 5,
+        tags: const ['strength', 'progress'],
+      ),
+      ProfileJournalEntry(
+        date: now.subtract(const Duration(days: 2, hours: 5)),
+        template: 'recovery',
+        energyLevel: 3,
+        effortLevel: 2,
+        tags: const ['recovery', 'hydration'],
+      ),
+      ProfileJournalEntry(
+        date: now.subtract(const Duration(days: 4)),
+        template: 'mobility',
+        energyLevel: 5,
+        effortLevel: 3,
+        tags: const ['mobility', 'focus'],
+      ),
+    ];
+  }
+
   void _persistProfile() {
     _prefs
       ..setString('user_displayName', _profile.name)
@@ -197,6 +270,24 @@ class ProfileController extends ChangeNotifier {
               ].join('|'),
         )
         .toList());
+  }
+
+  void _persistJournal() {
+    _prefs.setStringList(
+      'user_journal_entries',
+      _journalEntries
+          .map(
+            (e) => [
+                  e.date.toIso8601String(),
+                  e.template,
+                  e.energyLevel.toString(),
+                  e.effortLevel.toString(),
+                  e.synced ? '1' : '0',
+                  e.tags.join(','),
+                ].join('|'),
+          )
+          .toList(),
+    );
   }
 
   void _persistLogins() {

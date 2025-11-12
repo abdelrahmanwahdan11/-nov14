@@ -83,3 +83,21 @@ class LoginRecord {
   final String device;
   final bool successful;
 }
+
+class ProfileJournalEntry {
+  const ProfileJournalEntry({
+    required this.date,
+    required this.template,
+    required this.tags,
+    required this.energyLevel,
+    required this.effortLevel,
+    this.synced = true,
+  });
+
+  final DateTime date;
+  final String template;
+  final List<String> tags;
+  final int energyLevel;
+  final int effortLevel;
+  final bool synced;
+}

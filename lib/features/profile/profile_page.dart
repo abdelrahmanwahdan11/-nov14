@@ -100,9 +100,19 @@ class ProfilePage extends StatelessWidget {
                         onAddMeasurement: () => _simulateMeasurement(state),
                       ),
                       const SizedBox(height: 20),
+                      _SegmentalBalanceCard(strings: strings, measurement: measurement),
+                      const SizedBox(height: 20),
                       _InbodyHistoryList(strings: strings, controller: state.profileController),
                       const SizedBox(height: 20),
                       _AccountSummaryCard(strings: strings, controller: state.profileController),
+                      const SizedBox(height: 20),
+                      _AccountSecurityCard(strings: strings, controller: state.profileController),
+                      const SizedBox(height: 20),
+                      _PersonalJournalCard(
+                        strings: strings,
+                        controller: state.profileController,
+                        onAddEntry: () => _simulateJournalEntry(context, state),
+                      ),
                       const SizedBox(height: 20),
                       _LoginHistoryCard(strings: strings, controller: state.profileController),
                       const SizedBox(height: 32),
@@ -225,6 +235,39 @@ class ProfilePage extends StatelessWidget {
     );
     state.profileController.recordMeasurement(measurement);
   }
+
+  void _simulateJournalEntry(BuildContext context, AppState state) {
+    final strings = AppLocalizations.of(context);
+    final random = math.Random();
+    const templates = ['strength', 'recovery', 'mobility', 'endurance'];
+    final template = templates[random.nextInt(templates.length)];
+    final tags = <String>{};
+    switch (template) {
+      case 'strength':
+        tags.addAll(['strength', 'progress']);
+        break;
+      case 'recovery':
+        tags.addAll(['recovery', 'hydration']);
+        break;
+      case 'mobility':
+        tags.addAll(['mobility', 'focus']);
+        break;
+      default:
+        tags.addAll(['endurance', 'cardio']);
+        break;
+    }
+    final entry = ProfileJournalEntry(
+      date: DateTime.now(),
+      template: template,
+      energyLevel: 3 + random.nextInt(3),
+      effortLevel: 2 + random.nextInt(4),
+      tags: tags.toList(),
+    );
+    state.profileController.addJournalEntry(entry);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(strings.t('journalEntryAdded'))),
+    );
+  }
 }
 
 class _ProfileHeader extends StatelessWidget {
@@ -311,6 +354,15 @@ class _BodyCompositionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final leanMass = measurement == null
+        ? 0.0
+        : (measurement!.weightKg * (1 - measurement!.bodyFatPercentage / 100)).clamp(0, 200);
+    final fatMass = measurement == null
+        ? 0.0
+        : (measurement!.weightKg - leanMass).clamp(0, measurement!.weightKg);
+    final metabolicAge = measurement == null
+        ? 0
+        : ((measurement!.basalMetabolicRate / 10).clamp(18, 65)).round();
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
@@ -346,10 +398,14 @@ class _BodyCompositionCard extends StatelessWidget {
                       key: ValueKey(measurement.date),
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: MediaQuery.of(context).size.width > 480 ? 3 : 2,
+                      crossAxisCount: MediaQuery.of(context).size.width > 720
+                          ? 4
+                          : MediaQuery.of(context).size.width > 480
+                              ? 3
+                              : 2,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      childAspectRatio: 1.4,
+                      childAspectRatio: 1.25,
                       children: [
                         _InbodyMetricTile(
                           label: strings.t('weight'),
@@ -386,6 +442,21 @@ class _BodyCompositionCard extends StatelessWidget {
                           value: measurement.bmi.toStringAsFixed(1),
                           icon: Icons.leaderboard,
                         ),
+                        _InbodyMetricTile(
+                          label: strings.t('leanMass'),
+                          value: '${leanMass.toStringAsFixed(1)} kg',
+                          icon: Icons.directions_run,
+                        ),
+                        _InbodyMetricTile(
+                          label: strings.t('fatMass'),
+                          value: '${fatMass.toStringAsFixed(1)} kg',
+                          icon: Icons.incomplete_circle,
+                        ),
+                        _InbodyMetricTile(
+                          label: strings.t('metabolicAge'),
+                          value: '$metabolicAge',
+                          icon: Icons.speed,
+                        ),
                       ],
                     ),
             ),
@@ -393,6 +464,454 @@ class _BodyCompositionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SegmentalBalanceCard extends StatelessWidget {
+  const _SegmentalBalanceCard({required this.strings, required this.measurement});
+
+  final AppLocalizations strings;
+  final InbodyMeasurement? measurement;
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = measurement == null ? <_SegmentSnapshot>[] : _buildSegments(measurement!);
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.t('segmentalBalance'), style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(strings.t('segmentalBalanceSubtitle'), style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            if (segments.isEmpty)
+              Text(strings.t('noInbody'), style: Theme.of(context).textTheme.bodyMedium)
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: segments.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final segment = segments[index];
+                  return _SegmentRow(segment: segment, strings: strings);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_SegmentSnapshot> _buildSegments(InbodyMeasurement measurement) {
+    final totalMuscle = measurement.skeletalMuscleKg.clamp(1, 200);
+    final totalFat = (measurement.weightKg * measurement.bodyFatPercentage / 100).clamp(1, 200);
+    final upperMuscle = (totalMuscle * 0.34).clamp(0, totalMuscle);
+    final lowerMuscle = (totalMuscle * 0.44).clamp(0, totalMuscle);
+    final coreMuscle = (totalMuscle * 0.22).clamp(0, totalMuscle);
+    final upperFat = (totalFat * 0.32).clamp(0, totalFat);
+    final lowerFat = (totalFat * 0.38).clamp(0, totalFat);
+    final coreFat = (totalFat * 0.30).clamp(0, totalFat);
+    final leftMuscle = (totalMuscle * 0.49).clamp(0, totalMuscle);
+    final rightMuscle = (totalMuscle * 0.51).clamp(0, totalMuscle);
+    final leftFat = (totalFat * 0.5).clamp(0, totalFat);
+    final rightFat = (totalFat * 0.5).clamp(0, totalFat);
+    final symmetryDelta = ((rightMuscle - leftMuscle) / totalMuscle * 100).clamp(-25, 25);
+    return [
+      _SegmentSnapshot(
+        label: strings.t('upperBody'),
+        musclePercent: upperMuscle / totalMuscle * 100,
+        fatPercent: upperFat / totalFat * 100,
+      ),
+      _SegmentSnapshot(
+        label: strings.t('lowerBody'),
+        musclePercent: lowerMuscle / totalMuscle * 100,
+        fatPercent: lowerFat / totalFat * 100,
+      ),
+      _SegmentSnapshot(
+        label: strings.t('core'),
+        musclePercent: coreMuscle / totalMuscle * 100,
+        fatPercent: coreFat / totalFat * 100,
+      ),
+      _SegmentSnapshot(
+        label: strings.t('leftSide'),
+        musclePercent: leftMuscle / totalMuscle * 100,
+        fatPercent: leftFat / totalFat * 100,
+        deltaPercent: symmetryDelta,
+      ),
+      _SegmentSnapshot(
+        label: strings.t('rightSide'),
+        musclePercent: rightMuscle / totalMuscle * 100,
+        fatPercent: rightFat / totalFat * 100,
+      ),
+    ];
+  }
+}
+
+class _SegmentRow extends StatelessWidget {
+  const _SegmentRow({required this.segment, required this.strings});
+
+  final _SegmentSnapshot segment;
+  final AppLocalizations strings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: theme.colorScheme.surfaceVariant.withOpacity(.55),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(segment.label, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          TweenAnimationBuilder<double>(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutQuart,
+            tween: Tween(begin: 0, end: segment.musclePercent.clamp(0, 100)),
+            builder: (context, value, _) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(strings.t('muscleMass'), style: theme.textTheme.labelMedium),
+                      Text('${value.toStringAsFixed(1)}%'),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: value / 100,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          TweenAnimationBuilder<double>(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutQuart,
+            tween: Tween(begin: 0, end: segment.fatPercent.clamp(0, 100)),
+            builder: (context, value, _) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(strings.t('bodyFat'), style: theme.textTheme.labelMedium),
+                      Text('${value.toStringAsFixed(1)}%'),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: value / 100,
+                    minHeight: 6,
+                    color: theme.colorScheme.tertiary,
+                    backgroundColor: theme.colorScheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ],
+              );
+            },
+          ),
+          if (segment.deltaPercent != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.compare_arrows, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  '${segment.deltaPercent! >= 0 ? '+' : ''}${segment.deltaPercent!.toStringAsFixed(1)}% ${strings.t('balanceDelta')}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentSnapshot {
+  const _SegmentSnapshot({
+    required this.label,
+    required this.musclePercent,
+    required this.fatPercent,
+    this.deltaPercent,
+  });
+
+  final String label;
+  final double musclePercent;
+  final double fatPercent;
+  final double? deltaPercent;
+}
+
+class _AccountSecurityCard extends StatelessWidget {
+  const _AccountSecurityCard({required this.strings, required this.controller});
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final localizations = MaterialLocalizations.of(context);
+    final lastLogin = controller.lastLogin;
+    final methodCounts = controller.loginBreakdownByMethod;
+    final devices = controller.activeDevices;
+    final totalLogins = controller.loginHistory.length;
+    final primaryDevice = controller.loginHistory.isEmpty ? strings.t('notAvailable') : controller.loginHistory.first.device;
+    final lastActiveText = lastLogin == null
+        ? strings.t('noLogins')
+        : '${localizations.formatMediumDate(lastLogin)} · ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(lastLogin))}';
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.t('accountSecurity'), style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(strings.t('accountSecuritySubtitle'), style: theme.textTheme.bodySmall),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: theme.colorScheme.primary.withOpacity(.12),
+                child: Icon(Icons.shield_outlined, color: theme.colorScheme.primary),
+              ),
+              title: Text('${strings.t('totalLogins')}: $totalLogins'),
+              subtitle: Text('${strings.t('lastActive')}: $lastActiveText'),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: theme.colorScheme.secondaryContainer.withOpacity(.6),
+                child: Icon(Icons.devices_other, color: theme.colorScheme.onSecondaryContainer),
+              ),
+              title: Text('${strings.t('primaryDevice')}: $primaryDevice'),
+              subtitle: Text('${strings.t('activeDevices')}: ${devices.isEmpty ? strings.t('notAvailable') : devices.length}'),
+            ),
+            const SizedBox(height: 12),
+            Text(strings.t('loginMethods'), style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: methodCounts.entries
+                  .map(
+                    (entry) => Chip(
+                      avatar: Icon(_methodIcon(entry.key), size: 18),
+                      label: Text('${_methodLabel(entry.key, strings)} • ${entry.value}'),
+                    ),
+                  )
+                  .toList(),
+            ),
+            if (devices.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(strings.t('activeDevices'), style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: devices
+                    .map(
+                      (device) => Chip(
+                        avatar: const Icon(Icons.device_hub, size: 18),
+                        label: Text(device),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _methodIcon(String method) {
+    switch (method) {
+      case 'guest':
+        return Icons.person_outline;
+      case 'register':
+        return Icons.person_add_alt;
+      default:
+        return Icons.lock_outline;
+    }
+  }
+
+  String _methodLabel(String method, AppLocalizations strings) {
+    switch (method) {
+      case 'guest':
+        return strings.t('loginMethodGuest');
+      case 'register':
+        return strings.t('loginMethodRegister');
+      default:
+        return strings.t('loginMethodPassword');
+    }
+  }
+}
+
+class _PersonalJournalCard extends StatelessWidget {
+  const _PersonalJournalCard({
+    required this.strings,
+    required this.controller,
+    required this.onAddEntry,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onAddEntry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = controller.journalEntries;
+    final localizations = MaterialLocalizations.of(context);
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(strings.t('personalJournal'), style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(strings.t('journalSubtitle'), style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onAddEntry,
+                  icon: const Icon(Icons.add_task),
+                  label: Text(strings.t('addJournalEntry')),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (entries.isEmpty)
+              Text(strings.t('journalEmpty'), style: theme.textTheme.bodyMedium)
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  final title = _journalTitle(strings, entry.template);
+                  final body = _journalBody(strings, entry.template);
+                  final date = localizations.formatMediumDate(entry.date);
+                  final time = localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.date));
+                  return TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: Duration(milliseconds: 320 + index * 40),
+                    builder: (context, value, child) {
+                      return Opacity(opacity: value, child: child);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: theme.colorScheme.surfaceVariant.withOpacity(.6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$date · $time', style: theme.textTheme.labelMedium),
+                          const SizedBox(height: 8),
+                          Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          Text(body, style: theme.textTheme.bodyMedium),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(Icons.bolt, size: 18, color: theme.colorScheme.primary),
+                              const SizedBox(width: 6),
+                              Text('${strings.t('energy')}: ${entry.energyLevel}/5', style: theme.textTheme.labelMedium),
+                              const SizedBox(width: 16),
+                              Icon(Icons.show_chart, size: 18, color: theme.colorScheme.secondary),
+                              const SizedBox(width: 6),
+                              Text('${strings.t('effort')}: ${entry.effortLevel}/5', style: theme.textTheme.labelMedium),
+                              if (entry.synced) ...[
+                                const SizedBox(width: 16),
+                                Icon(Icons.cloud_done, size: 18, color: theme.colorScheme.tertiary),
+                                const SizedBox(width: 6),
+                                Text(strings.t('synced'), style: theme.textTheme.labelMedium),
+                              ],
+                            ],
+                          ),
+                          if (entry.tags.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: entry.tags
+                                  .map(
+                                    (tag) => Chip(
+                                      label: Text(strings.t(tag)),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _journalTitle(AppLocalizations strings, String template) {
+    switch (template) {
+      case 'strength':
+        return strings.t('journalStrengthTitle');
+      case 'recovery':
+        return strings.t('journalRecoveryTitle');
+      case 'mobility':
+        return strings.t('journalMobilityTitle');
+      default:
+        return strings.t('journalEnduranceTitle');
+    }
+  }
+
+  String _journalBody(AppLocalizations strings, String template) {
+    switch (template) {
+      case 'strength':
+        return strings.t('journalStrengthBody');
+      case 'recovery':
+        return strings.t('journalRecoveryBody');
+      case 'mobility':
+        return strings.t('journalMobilityBody');
+      default:
+        return strings.t('journalEnduranceBody');
+    }
   }
 }
 
