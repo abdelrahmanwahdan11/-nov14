@@ -100,9 +100,29 @@ class ProfilePage extends StatelessWidget {
                         onAddMeasurement: () => _simulateMeasurement(state),
                       ),
                       const SizedBox(height: 20),
+                      _InbodyInsightsCard(strings: strings, controller: state.profileController),
+                      const SizedBox(height: 20),
                       _SegmentalBalanceCard(strings: strings, measurement: measurement),
                       const SizedBox(height: 20),
+                      _RecoveryReadinessCard(
+                        strings: strings,
+                        controller: state.profileController,
+                        onAddSnapshot: () => _simulateReadiness(state),
+                      ),
+                      const SizedBox(height: 20),
+                      _HydrationCoachCard(
+                        strings: strings,
+                        controller: state.profileController,
+                        onLogHydration: (amount) => state.profileController.logHydration(amount),
+                      ),
+                      const SizedBox(height: 20),
                       _InbodyHistoryList(strings: strings, controller: state.profileController),
+                      const SizedBox(height: 20),
+                      _WellnessTargetsCard(
+                        strings: strings,
+                        controller: state.profileController,
+                        onEdit: () => _showWellnessSheet(context, state),
+                      ),
                       const SizedBox(height: 20),
                       _AccountSummaryCard(strings: strings, controller: state.profileController),
                       const SizedBox(height: 20),
@@ -234,6 +254,176 @@ class ProfilePage extends StatelessWidget {
       bmi: ((last?.bmi ?? 21.5) + (random.nextDouble() - 0.5)).clamp(14, 40).toDouble(),
     );
     state.profileController.recordMeasurement(measurement);
+  }
+
+  void _simulateReadiness(AppState state) {
+    final random = math.Random();
+    final baseline = state.profileController.latestReadiness;
+    final score = ((baseline?.score ?? 82) + random.nextInt(9) - 4).clamp(40, 100);
+    final sleep = ((baseline?.sleepHours ?? state.profileController.profile.sleepGoalHours ?? 7.3) +
+            (random.nextDouble() - 0.5))
+        .clamp(4.5, 9.5);
+    final hrv = ((baseline?.hrv ?? 48) + random.nextDouble() * 4 - 2).clamp(25, 90);
+    final restingHr = ((baseline?.restingHeartRate ??
+                state.profileController.profile.restingHeartRate ??
+                52) +
+            random.nextInt(5) -
+            2)
+        .clamp(40, 80);
+    state.profileController.recordReadiness(
+      ReadinessSnapshot(
+        date: DateTime.now(),
+        score: score.round(),
+        sleepHours: double.parse(sleep.toStringAsFixed(1)),
+        hrv: double.parse(hrv.toStringAsFixed(1)),
+        restingHeartRate: restingHr,
+      ),
+    );
+  }
+
+  void _showWellnessSheet(BuildContext context, AppState state) {
+    final strings = AppLocalizations.of(context);
+    final profile = state.profileController.profile;
+    final hydration = TextEditingController(
+      text: (profile.hydrationGoalLiters ?? state.profileController.hydrationGoal)
+          .toStringAsFixed(1),
+    );
+    final sleep = TextEditingController(
+      text: (profile.sleepGoalHours ?? state.profileController.averageSleepHours).toStringAsFixed(1),
+    );
+    final restingHr = TextEditingController(
+      text: (profile.restingHeartRate ?? 52).toString(),
+    );
+    final vo2 = TextEditingController(
+      text: (profile.vo2Max ?? 42.0).toStringAsFixed(1),
+    );
+    final bodyAge = TextEditingController(
+      text: (profile.bodyAge ?? (profile.age?.toDouble() ?? 28)).toStringAsFixed(0),
+    );
+    final focus = TextEditingController(text: profile.focusArea ?? strings.t('focusFlowDefault'));
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            top: 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(strings.t('wellnessTargets'), style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              Text(strings.t('wellnessTargetsSubtitle'), style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: hydration,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: strings.t('hydrationGoal'),
+                        suffixText: strings.t('litersUnit'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: sleep,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: strings.t('sleepGoal'),
+                        suffixText: strings.t('hoursUnit'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: restingHr,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: strings.t('restingHeartRate'),
+                        suffixText: strings.t('bpmUnit'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: vo2,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: strings.t('vo2Max'),
+                        suffixText: strings.t('mlKgMinUnit'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: bodyAge,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: strings.t('bodyAge'),
+                  suffixText: strings.t('yearsUnit'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: focus,
+                decoration: InputDecoration(
+                  labelText: strings.t('focusArea'),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(strings.t('cancel')),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      state.profileController.updateWellnessTargets(
+                        hydrationGoalLiters: double.tryParse(hydration.text),
+                        sleepGoalHours: double.tryParse(sleep.text),
+                        restingHeartRate: int.tryParse(restingHr.text),
+                        vo2Max: double.tryParse(vo2.text),
+                        bodyAge: double.tryParse(bodyAge.text),
+                        focusArea: focus.text.trim(),
+                      );
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(strings.t('wellnessTargetsUpdated'))),
+                      );
+                    },
+                    child: Text(strings.t('save')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _simulateJournalEntry(BuildContext context, AppState state) {
@@ -467,6 +657,179 @@ class _BodyCompositionCard extends StatelessWidget {
   }
 }
 
+class _InbodyInsightsCard extends StatelessWidget {
+  const _InbodyInsightsCard({required this.strings, required this.controller});
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = controller.latestMeasurement;
+    final previous = controller.inbodyHistory.length > 1 ? controller.inbodyHistory[1] : null;
+    final localizations = MaterialLocalizations.of(context);
+    final history = controller.inbodyHistory.take(4).toList();
+    final maxWeight = history.isEmpty
+        ? 0.0
+        : history.map((entry) => entry.weightKg).reduce(math.max).toDouble();
+    final weightDelta = latest != null && previous != null
+        ? latest.weightKg - previous.weightKg
+        : null;
+    final fatDelta = latest != null && previous != null
+        ? latest.bodyFatPercentage - previous.bodyFatPercentage
+        : null;
+    final muscleDelta = latest != null && previous != null
+        ? latest.skeletalMuscleKg - previous.skeletalMuscleKg
+        : null;
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(strings.t('inbodyInsights'), style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(strings.t('inbodyInsightsSubtitle'), style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            if (latest == null)
+              Text(strings.t('noInbody'), style: Theme.of(context).textTheme.bodyMedium)
+            else ...[
+              _InsightRow(
+                icon: Icons.monitor_weight_outlined,
+                label: strings.t('weightTrend'),
+                value: '${latest.weightKg.toStringAsFixed(1)} kg',
+                delta: weightDelta,
+                formatDelta: (value) => '${value > 0 ? '+' : ''}${value.toStringAsFixed(1)} kg',
+              ),
+              const SizedBox(height: 12),
+              _InsightRow(
+                icon: Icons.water_drop,
+                label: strings.t('bodyFatTrend'),
+                value: '${latest.bodyFatPercentage.toStringAsFixed(1)} %',
+                delta: fatDelta,
+                formatDelta: (value) => '${value > 0 ? '+' : ''}${value.toStringAsFixed(1)} %',
+              ),
+              const SizedBox(height: 12),
+              _InsightRow(
+                icon: Icons.fitness_center_outlined,
+                label: strings.t('muscleTrend'),
+                value: '${latest.skeletalMuscleKg.toStringAsFixed(1)} kg',
+                delta: muscleDelta,
+                formatDelta: (value) => '${value > 0 ? '+' : ''}${value.toStringAsFixed(1)} kg',
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 120,
+                child: history.isEmpty
+                    ? const SizedBox.shrink()
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: history
+                            .toList()
+                            .reversed
+                            .map(
+                              (entry) => Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 420),
+                                      curve: Curves.easeOut,
+                                      height: maxWeight == 0
+                                          ? 12
+                                          : 12 + 80 * (entry.weightKg / maxWeight).clamp(0, 1),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Theme.of(context).colorScheme.primary.withOpacity(.2),
+                                            Theme.of(context).colorScheme.primary.withOpacity(.6),
+                                          ],
+                                          begin: Alignment.bottomCenter,
+                                          end: Alignment.topCenter,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      localizations.formatShortDate(entry.date),
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  const _InsightRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.delta,
+    required this.formatDelta,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final double? delta;
+  final String Function(double value) formatDelta;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = delta == null
+        ? theme.colorScheme.outline
+        : delta! < 0
+            ? theme.colorScheme.tertiary
+            : theme.colorScheme.error;
+    final bgColor = delta == null
+        ? theme.colorScheme.surfaceVariant.withOpacity(.35)
+        : delta! < 0
+            ? theme.colorScheme.primary.withOpacity(.12)
+            : theme.colorScheme.error.withOpacity(.12);
+    return Row(
+      children: [
+        Icon(icon, color: theme.colorScheme.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.bodySmall),
+              Text(value, style: theme.textTheme.titleMedium),
+            ],
+          ),
+        ),
+        if (delta != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              formatDelta(delta!),
+              style: theme.textTheme.labelMedium?.copyWith(color: color),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _SegmentalBalanceCard extends StatelessWidget {
   const _SegmentalBalanceCard({required this.strings, required this.measurement});
 
@@ -548,6 +911,333 @@ class _SegmentalBalanceCard extends StatelessWidget {
         fatPercent: rightFat / totalFat * 100,
       ),
     ];
+  }
+}
+
+class _RecoveryReadinessCard extends StatelessWidget {
+  const _RecoveryReadinessCard({
+    required this.strings,
+    required this.controller,
+    required this.onAddSnapshot,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onAddSnapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final readiness = controller.latestReadiness;
+    final score = readiness?.score ?? (controller.readinessScoreAverage).round();
+    final sleep = readiness?.sleepHours ?? controller.averageSleepHours;
+    final hrv = readiness?.hrv ?? 0;
+    final restingHr = readiness?.restingHeartRate ?? controller.profile.restingHeartRate ?? 52;
+    final streak = controller.readinessStreak;
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(strings.t('readinessRecovery'), style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(strings.t('readinessSummary'), style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: onAddSnapshot,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(strings.t('logReadiness')),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 420),
+                  tween: Tween<double>(begin: 0, end: (score / 100).clamp(0, 1)),
+                  builder: (context, value, child) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 120,
+                          height: 120,
+                          child: CircularProgressIndicator(
+                            value: value,
+                            strokeWidth: 10,
+                            backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(.6),
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('$score', style: theme.textTheme.headlineMedium),
+                            Text(strings.t('readinessScore'), style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          MetricChip(
+                            icon: Icons.hotel,
+                            label: strings.t('averageSleep'),
+                            value: '${sleep.toStringAsFixed(1)} ${strings.t('hoursUnit')}',
+                          ),
+                          MetricChip(
+                            icon: Icons.favorite_outline,
+                            label: strings.t('restingHeartRate'),
+                            value: '$restingHr ${strings.t('bpmUnit')}',
+                          ),
+                          MetricChip(
+                            icon: Icons.show_chart,
+                            label: strings.t('hrv'),
+                            value: '${hrv.toStringAsFixed(1)} ms',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '${strings.t('readinessStreak')}: $streak ${strings.t('daysUnit')}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HydrationCoachCard extends StatelessWidget {
+  const _HydrationCoachCard({
+    required this.strings,
+    required this.controller,
+    required this.onLogHydration,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final ValueChanged<double> onLogHydration;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final today = controller.hydrationToday;
+    final goal = controller.hydrationGoal;
+    final progress = controller.hydrationProgress;
+    final logs = controller.hydrationLogs.take(4).toList();
+    final localizations = MaterialLocalizations.of(context);
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(strings.t('hydrationCoach'), style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(strings.t('hydrationCoachSubtitle'), style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => onLogHydration(0.25),
+                  tooltip: strings.t('logCup'),
+                  icon: const Icon(Icons.add_circle_outline),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${strings.t('hydrationToday')}: ${today.toStringAsFixed(2)} / ${goal.toStringAsFixed(1)} ${strings.t('litersUnit')}',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Text(strings.t('quickLog'), style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              children: [
+                for (final amount in const [0.25, 0.5, 1.0])
+                  ActionChip(
+                    onPressed: () => onLogHydration(amount),
+                    label: Text('+${amount.toStringAsFixed(2)} ${strings.t('litersUnit')}'),
+                  ),
+              ],
+            ),
+            if (logs.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text(strings.t('recentHydration'), style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final entry = logs[index];
+                  return Row(
+                    children: [
+                      Icon(Icons.water_drop, color: theme.colorScheme.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          localizations.formatShortDate(entry.date),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      Text('${entry.liters.toStringAsFixed(2)} ${strings.t('litersUnit')}',
+                          style: theme.textTheme.bodyMedium),
+                    ],
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemCount: logs.length,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WellnessTargetsCard extends StatelessWidget {
+  const _WellnessTargetsCard({
+    required this.strings,
+    required this.controller,
+    required this.onEdit,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = controller.profile;
+    final theme = Theme.of(context);
+    final focus = profile.focusArea ?? strings.t('focusFlowDefault');
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(strings.t('wellnessCardTitle'), style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(strings.t('wellnessCardSubtitle'), style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.tune),
+                  label: Text(strings.t('adjustTargets')),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(.05),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                focus,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                MetricChip(
+                  icon: Icons.water_drop_outlined,
+                  label: strings.t('hydrationGoal'),
+                  value:
+                      '${(profile.hydrationGoalLiters ?? controller.hydrationGoal).toStringAsFixed(1)} ${strings.t('litersUnit')}',
+                ),
+                MetricChip(
+                  icon: Icons.bedtime,
+                  label: strings.t('sleepGoal'),
+                  value:
+                      '${(profile.sleepGoalHours ?? controller.averageSleepHours).toStringAsFixed(1)} ${strings.t('hoursUnit')}',
+                ),
+                if (profile.restingHeartRate != null)
+                  MetricChip(
+                    icon: Icons.favorite_outline,
+                    label: strings.t('restingHeartRate'),
+                    value: '${profile.restingHeartRate} ${strings.t('bpmUnit')}',
+                  ),
+                if (profile.vo2Max != null)
+                  MetricChip(
+                    icon: Icons.timeline,
+                    label: strings.t('vo2Max'),
+                    value: '${profile.vo2Max!.toStringAsFixed(1)} ${strings.t('mlKgMinUnit')}',
+                  ),
+                if (profile.bodyAge != null)
+                  MetricChip(
+                    icon: Icons.cake_outlined,
+                    label: strings.t('bodyAge'),
+                    value: '${profile.bodyAge!.toStringAsFixed(0)} ${strings.t('yearsUnit')}',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

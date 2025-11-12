@@ -9,6 +9,12 @@ class UserProfile {
     this.weightKg,
     this.goal,
     this.lastInbodySync,
+    this.restingHeartRate,
+    this.vo2Max,
+    this.sleepGoalHours,
+    this.hydrationGoalLiters,
+    this.bodyAge,
+    this.focusArea,
   });
 
   final String name;
@@ -20,6 +26,12 @@ class UserProfile {
   final double? weightKg;
   final String? goal;
   final DateTime? lastInbodySync;
+  final int? restingHeartRate;
+  final double? vo2Max;
+  final double? sleepGoalHours;
+  final double? hydrationGoalLiters;
+  final double? bodyAge;
+  final String? focusArea;
 
   UserProfile copyWith({
     String? name,
@@ -31,6 +43,12 @@ class UserProfile {
     double? weightKg,
     String? goal,
     DateTime? lastInbodySync,
+    int? restingHeartRate,
+    double? vo2Max,
+    double? sleepGoalHours,
+    double? hydrationGoalLiters,
+    double? bodyAge,
+    String? focusArea,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -42,6 +60,12 @@ class UserProfile {
       weightKg: weightKg ?? this.weightKg,
       goal: goal ?? this.goal,
       lastInbodySync: lastInbodySync ?? this.lastInbodySync,
+      restingHeartRate: restingHeartRate ?? this.restingHeartRate,
+      vo2Max: vo2Max ?? this.vo2Max,
+      sleepGoalHours: sleepGoalHours ?? this.sleepGoalHours,
+      hydrationGoalLiters: hydrationGoalLiters ?? this.hydrationGoalLiters,
+      bodyAge: bodyAge ?? this.bodyAge,
+      focusArea: focusArea ?? this.focusArea,
     );
   }
 }
@@ -100,4 +124,37 @@ class ProfileJournalEntry {
   final int energyLevel;
   final int effortLevel;
   final bool synced;
+}
+
+class ReadinessSnapshot {
+  const ReadinessSnapshot({
+    required this.date,
+    required this.score,
+    required this.sleepHours,
+    required this.hrv,
+    required this.restingHeartRate,
+  });
+
+  final DateTime date;
+  final int score;
+  final double sleepHours;
+  final double hrv;
+  final int restingHeartRate;
+}
+
+class HydrationLog {
+  const HydrationLog({
+    required this.date,
+    required this.liters,
+  });
+
+  HydrationLog copyWith({DateTime? date, double? liters}) {
+    return HydrationLog(
+      date: date ?? this.date,
+      liters: liters ?? this.liters,
+    );
+  }
+
+  final DateTime date;
+  final double liters;
 }

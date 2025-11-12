@@ -18,25 +18,38 @@ class ProfileController extends ChangeNotifier {
           weightKg: _readOptionalDouble(prefs, 'user_weightKg') ?? 62.4,
           goal: _readOptionalString(prefs, 'user_goal') ?? 'Feel powerful and agile every week.',
           lastInbodySync: _restoreDate(prefs.getInt('user_lastInbodyEpoch')),
+          restingHeartRate: _readOptionalInt(prefs, 'user_restingHeartRate') ?? 52,
+          vo2Max: _readOptionalDouble(prefs, 'user_vo2Max') ?? 43.2,
+          sleepGoalHours: _readOptionalDouble(prefs, 'user_sleepGoalHours') ?? 7.5,
+          hydrationGoalLiters: _readOptionalDouble(prefs, 'user_hydrationGoalLiters') ?? 2.7,
+          bodyAge: _readOptionalDouble(prefs, 'user_bodyAge') ?? 26,
+          focusArea: _readOptionalString(prefs, 'user_focusArea') ?? 'Power & Mobility',
         ),
         _inbodyHistory = _seedInbodyHistory(prefs.getStringList('user_inbody_history')),
         _loginHistory = _seedLoginHistory(prefs.getStringList('user_login_history')),
-        _journalEntries = _seedJournalEntries(prefs.getStringList('user_journal_entries'));
+        _journalEntries = _seedJournalEntries(prefs.getStringList('user_journal_entries')),
+        _readiness = _seedReadinessHistory(prefs.getStringList('user_readiness_history')),
+        _hydrationLogs = _seedHydrationLogs(prefs.getStringList('user_hydration_logs'));
 
   final SharedPreferences _prefs;
   UserProfile _profile;
   final List<InbodyMeasurement> _inbodyHistory;
   final List<LoginRecord> _loginHistory;
   final List<ProfileJournalEntry> _journalEntries;
+  final List<ReadinessSnapshot> _readiness;
+  final List<HydrationLog> _hydrationLogs;
 
   UserProfile get profile => _profile;
   List<InbodyMeasurement> get inbodyHistory => List.unmodifiable(_inbodyHistory);
   List<LoginRecord> get loginHistory => List.unmodifiable(_loginHistory);
   List<ProfileJournalEntry> get journalEntries => List.unmodifiable(_journalEntries);
+  List<ReadinessSnapshot> get readinessHistory => List.unmodifiable(_readiness);
+  List<HydrationLog> get hydrationLogs => List.unmodifiable(_hydrationLogs);
 
   InbodyMeasurement? get latestMeasurement => _inbodyHistory.isEmpty ? null : _inbodyHistory.first;
   ProfileJournalEntry? get latestJournal => _journalEntries.isEmpty ? null : _journalEntries.first;
   DateTime? get lastLogin => _loginHistory.isEmpty ? null : _loginHistory.first.timestamp;
+  ReadinessSnapshot? get latestReadiness => _readiness.isEmpty ? null : _readiness.first;
 
   Map<String, int> get loginBreakdownByMethod {
     final map = <String, int>{};
@@ -71,6 +84,12 @@ class ProfileController extends ChangeNotifier {
       heightCm: heightCm,
       weightKg: weightKg,
       goal: goal,
+      restingHeartRate: restingHeartRate,
+      vo2Max: vo2Max,
+      sleepGoalHours: sleepGoalHours,
+      hydrationGoalLiters: hydrationGoalLiters,
+      bodyAge: bodyAge,
+      focusArea: focusArea,
     );
     _persistProfile();
     notifyListeners();
@@ -117,6 +136,108 @@ class ProfileController extends ChangeNotifier {
       _journalEntries.removeLast();
     }
     _persistJournal();
+    notifyListeners();
+  }
+
+  void recordReadiness(ReadinessSnapshot snapshot) {
+    _readiness.insert(0, snapshot);
+    if (_readiness.length > 14) {
+      _readiness.removeLast();
+    }
+    _persistReadiness();
+    notifyListeners();
+  }
+
+  void logHydration(double liters) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final index = _hydrationLogs.indexWhere(
+      (log) => _isSameDay(log.date, today),
+    );
+    if (index >= 0) {
+      final updated = _hydrationLogs[index]
+          .copyWith(liters: (_hydrationLogs[index].liters + liters).clamp(0, 10));
+      _hydrationLogs[index] = updated;
+      if (index != 0) {
+        _hydrationLogs
+          ..removeAt(index)
+          ..insert(0, updated);
+      }
+    } else {
+      _hydrationLogs.insert(0, HydrationLog(date: today, liters: liters));
+    }
+    if (_hydrationLogs.length > 14) {
+      _hydrationLogs.removeLast();
+    }
+    _persistHydration();
+    notifyListeners();
+  }
+
+  double get hydrationToday {
+    if (_hydrationLogs.isEmpty) return 0;
+    final today = DateTime.now();
+    final total = _hydrationLogs
+        .where((log) => _isSameDay(log.date, today))
+        .fold<double>(0, (sum, log) => sum + log.liters);
+    return double.parse(total.toStringAsFixed(2));
+  }
+
+  double get hydrationGoal => _profile.hydrationGoalLiters ?? 2.7;
+
+  double get hydrationProgress {
+    if (hydrationGoal == 0) return 0;
+    final progress = hydrationToday / hydrationGoal;
+    return progress.clamp(0, 1.0);
+  }
+
+  double get averageSleepHours {
+    if (_readiness.isEmpty) {
+      return _profile.sleepGoalHours ?? 0;
+    }
+    final avg =
+        _readiness.fold<double>(0, (sum, entry) => sum + entry.sleepHours) / _readiness.length;
+    return double.parse(avg.toStringAsFixed(1));
+  }
+
+  int get readinessStreak {
+    if (_readiness.isEmpty) return 0;
+    var streak = 0;
+    DateTime? previous;
+    for (final snapshot in _readiness) {
+      if (snapshot.score < 70) break;
+      final date = DateTime(snapshot.date.year, snapshot.date.month, snapshot.date.day);
+      if (previous != null && previous!.difference(date).inDays > 1) {
+        break;
+      }
+      streak += 1;
+      previous = date;
+    }
+    return streak;
+  }
+
+  double get readinessScoreAverage {
+    if (_readiness.isEmpty) return 0;
+    final sum = _readiness.fold<int>(0, (value, entry) => value + entry.score);
+    return sum / _readiness.length;
+  }
+
+  void updateWellnessTargets({
+    double? hydrationGoalLiters,
+    double? sleepGoalHours,
+    int? restingHeartRate,
+    double? vo2Max,
+    double? bodyAge,
+    String? focusArea,
+  }) {
+    _profile = _profile.copyWith(
+      hydrationGoalLiters: hydrationGoalLiters,
+      sleepGoalHours: sleepGoalHours,
+      restingHeartRate: restingHeartRate,
+      vo2Max: vo2Max,
+      bodyAge: bodyAge,
+      focusArea: focusArea,
+    );
+    _persistProfile();
     notifyListeners();
   }
 
@@ -222,6 +343,55 @@ class ProfileController extends ChangeNotifier {
     ];
   }
 
+  static List<ReadinessSnapshot> _seedReadinessHistory(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 5)
+          .map(
+            (parts) => ReadinessSnapshot(
+              date: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              score: int.tryParse(parts[1]) ?? 70,
+              sleepHours: double.tryParse(parts[2]) ?? 7,
+              hrv: double.tryParse(parts[3]) ?? 45,
+              restingHeartRate: int.tryParse(parts[4]) ?? 52,
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return List.generate(5, (index) {
+      final date = now.subtract(Duration(days: index));
+      return ReadinessSnapshot(
+        date: date,
+        score: 78 + (index.isEven ? 4 : -2),
+        sleepHours: 7.2 + (index * 0.1),
+        hrv: 48 + index * 1.5,
+        restingHeartRate: 52 - index,
+      );
+    });
+  }
+
+  static List<HydrationLog> _seedHydrationLogs(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 2)
+          .map(
+            (parts) => HydrationLog(
+              date: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              liters: double.tryParse(parts[1]) ?? 0,
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return List.generate(4, (index) {
+      final date = now.subtract(Duration(days: index));
+      return HydrationLog(date: date, liters: 2.1 + index * 0.2);
+    });
+  }
+
   void _persistProfile() {
     _prefs
       ..setString('user_displayName', _profile.name)
@@ -252,6 +422,36 @@ class ProfileController extends ChangeNotifier {
       _prefs.setString('user_goal', _profile.goal!);
     } else {
       _prefs.remove('user_goal');
+    }
+    if (_profile.restingHeartRate != null) {
+      _prefs.setInt('user_restingHeartRate', _profile.restingHeartRate!);
+    } else {
+      _prefs.remove('user_restingHeartRate');
+    }
+    if (_profile.vo2Max != null) {
+      _prefs.setDouble('user_vo2Max', _profile.vo2Max!);
+    } else {
+      _prefs.remove('user_vo2Max');
+    }
+    if (_profile.sleepGoalHours != null) {
+      _prefs.setDouble('user_sleepGoalHours', _profile.sleepGoalHours!);
+    } else {
+      _prefs.remove('user_sleepGoalHours');
+    }
+    if (_profile.hydrationGoalLiters != null) {
+      _prefs.setDouble('user_hydrationGoalLiters', _profile.hydrationGoalLiters!);
+    } else {
+      _prefs.remove('user_hydrationGoalLiters');
+    }
+    if (_profile.bodyAge != null) {
+      _prefs.setDouble('user_bodyAge', _profile.bodyAge!);
+    } else {
+      _prefs.remove('user_bodyAge');
+    }
+    if (_profile.focusArea != null && _profile.focusArea!.isNotEmpty) {
+      _prefs.setString('user_focusArea', _profile.focusArea!);
+    } else {
+      _prefs.remove('user_focusArea');
     }
   }
 
@@ -306,6 +506,37 @@ class ProfileController extends ChangeNotifier {
     );
   }
 
+  void _persistReadiness() {
+    _prefs.setStringList(
+      'user_readiness_history',
+      _readiness
+          .map(
+            (e) => [
+                  e.date.toIso8601String(),
+                  e.score.toString(),
+                  e.sleepHours.toStringAsFixed(1),
+                  e.hrv.toStringAsFixed(1),
+                  e.restingHeartRate.toString(),
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistHydration() {
+    _prefs.setStringList(
+      'user_hydration_logs',
+      _hydrationLogs
+          .map(
+            (e) => [
+                  e.date.toIso8601String(),
+                  e.liters.toStringAsFixed(2),
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
   static DateTime? _restoreDate(int? value) {
     if (value == null || value == 0) return null;
     return DateTime.fromMillisecondsSinceEpoch(value);
@@ -330,5 +561,9 @@ class ProfileController extends ChangeNotifier {
     final value = prefs.getString(key);
     if (value == null || value.isEmpty) return null;
     return value;
+  }
+
+  static bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
