@@ -33,7 +33,14 @@ class ProfileController extends ChangeNotifier {
         _performanceTrends =
             _seedPerformanceTrends(prefs.getStringList('user_performance_trends')),
         _milestones =
-            _seedPerformanceMilestones(prefs.getStringList('user_performance_milestones'));
+            _seedPerformanceMilestones(prefs.getStringList('user_performance_milestones')),
+        _macroTargets = _seedMacroTargets(prefs),
+        _nutritionLogs = _seedNutritionLogs(prefs.getStringList('user_nutrition_logs')),
+        _sleepRecords = _seedSleepRecords(prefs.getStringList('user_sleep_records')),
+        _mindfulnessSessions =
+            _seedMindfulnessSessions(prefs.getStringList('user_mindfulness_sessions')),
+        _recoveryRoutines =
+            _seedRecoveryRoutines(prefs.getStringList('user_recovery_routines'));
 
   final SharedPreferences _prefs;
   UserProfile _profile;
@@ -44,6 +51,11 @@ class ProfileController extends ChangeNotifier {
   final List<HydrationLog> _hydrationLogs;
   final List<PerformanceTrend> _performanceTrends;
   final List<PerformanceMilestone> _milestones;
+  MacroTargets _macroTargets;
+  final List<NutritionLog> _nutritionLogs;
+  final List<SleepRecord> _sleepRecords;
+  final List<MindfulnessSession> _mindfulnessSessions;
+  final List<RecoveryRoutine> _recoveryRoutines;
 
   UserProfile get profile => _profile;
   List<InbodyMeasurement> get inbodyHistory => List.unmodifiable(_inbodyHistory);
@@ -53,6 +65,90 @@ class ProfileController extends ChangeNotifier {
   List<HydrationLog> get hydrationLogs => List.unmodifiable(_hydrationLogs);
   List<PerformanceTrend> get performanceTrends => List.unmodifiable(_performanceTrends);
   List<PerformanceMilestone> get performanceMilestones => List.unmodifiable(_milestones);
+  MacroTargets get macroTargets => _macroTargets;
+  List<NutritionLog> get nutritionLogs => List.unmodifiable(_nutritionLogs);
+  List<SleepRecord> get sleepRecords => List.unmodifiable(_sleepRecords);
+  List<MindfulnessSession> get mindfulnessSessions =>
+      List.unmodifiable(_mindfulnessSessions);
+  List<RecoveryRoutine> get recoveryRoutines => List.unmodifiable(_recoveryRoutines);
+
+  NutritionLog? get latestMeal => _nutritionLogs.isEmpty ? null : _nutritionLogs.first;
+  SleepRecord? get latestSleep => _sleepRecords.isEmpty ? null : _sleepRecords.first;
+  MindfulnessSession? get latestMindfulness =>
+      _mindfulnessSessions.isEmpty ? null : _mindfulnessSessions.first;
+  RecoveryRoutine? get nextRecoveryRoutine {
+    if (_recoveryRoutines.isEmpty) return null;
+    final sorted = [..._recoveryRoutines];
+    sorted.sort((a, b) {
+      final aDate = a.scheduledFor ?? a.lastCompleted ?? DateTime.now();
+      final bDate = b.scheduledFor ?? b.lastCompleted ?? DateTime.now();
+      return aDate.compareTo(bDate);
+    });
+    return sorted.first;
+  }
+
+  double get calorieProgressToday {
+    if (_macroTargets.calories <= 0) return 0;
+    final today = DateTime.now();
+    final total = _nutritionLogs
+        .where((log) => _isSameDay(log.timestamp, today))
+        .fold<int>(0, (sum, log) => sum + log.calories);
+    return (total / _macroTargets.calories).clamp(0, 1.0);
+  }
+
+  Map<String, double> get macroProgressToday {
+    final today = DateTime.now();
+    final totals = _nutritionLogs
+        .where((log) => _isSameDay(log.timestamp, today))
+        .fold<Map<String, int>>(
+          {'protein': 0, 'carbs': 0, 'fats': 0},
+          (map, log) {
+            map.update('protein', (value) => value + log.protein);
+            map.update('carbs', (value) => value + log.carbs);
+            map.update('fats', (value) => value + log.fats);
+            return map;
+          },
+        );
+    return {
+      'protein': _macroTargets.protein == 0
+          ? 0
+          : (totals['protein']! / _macroTargets.protein).clamp(0, 1.0),
+      'carbs': _macroTargets.carbs == 0
+          ? 0
+          : (totals['carbs']! / _macroTargets.carbs).clamp(0, 1.0),
+      'fats': _macroTargets.fats == 0
+          ? 0
+          : (totals['fats']! / _macroTargets.fats).clamp(0, 1.0),
+    };
+  }
+
+  double get sleepConsistencyScore {
+    if (_sleepRecords.length < 2) return 1;
+    final averageHours =
+        _sleepRecords.fold<double>(0, (sum, record) => sum + record.hours) /
+            _sleepRecords.length;
+    final variability = _sleepRecords.fold<double>(
+          0,
+          (sum, record) => sum + (record.hours - averageHours).abs(),
+        ) /
+        _sleepRecords.length;
+    final normalized = (1 - variability / 3).clamp(0, 1.0);
+    return double.parse(normalized.toStringAsFixed(2));
+  }
+
+  double get mindfulnessMinutesWeek {
+    final now = DateTime.now();
+    final minutes = _mindfulnessSessions
+        .where((session) => now.difference(session.date).inDays < 7)
+        .fold<int>(0, (sum, session) => sum + session.durationMinutes);
+    return minutes.toDouble();
+  }
+
+  int get bestRecoveryStreak {
+    if (_recoveryRoutines.isEmpty) return 0;
+    return _recoveryRoutines.fold<int>(
+        0, (best, routine) => routine.streak > best ? routine.streak : best);
+  }
 
   PerformanceTrend? get topMomentum {
     if (_performanceTrends.isEmpty) return null;
@@ -334,6 +430,60 @@ class ProfileController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateMacroTargets({int? calories, int? protein, int? carbs, int? fats}) {
+    _macroTargets = _macroTargets.copyWith(
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fats: fats,
+    );
+    _persistMacroTargets();
+    notifyListeners();
+  }
+
+  void logMeal(NutritionLog log) {
+    _nutritionLogs.insert(0, log);
+    if (_nutritionLogs.length > 24) {
+      _nutritionLogs.removeLast();
+    }
+    _persistNutrition();
+    notifyListeners();
+  }
+
+  void logSleep(SleepRecord record) {
+    _sleepRecords.insert(0, record);
+    if (_sleepRecords.length > 14) {
+      _sleepRecords.removeLast();
+    }
+    _persistSleep();
+    notifyListeners();
+  }
+
+  void addMindfulnessSession(MindfulnessSession session) {
+    _mindfulnessSessions.insert(0, session);
+    if (_mindfulnessSessions.length > 20) {
+      _mindfulnessSessions.removeLast();
+    }
+    _persistMindfulness();
+    notifyListeners();
+  }
+
+  void completeRecoveryRoutine(String id) {
+    final index = _recoveryRoutines.indexWhere((routine) => routine.id == id);
+    if (index == -1) return;
+    final routine = _recoveryRoutines[index];
+    final now = DateTime.now();
+    final sameDay = routine.lastCompleted != null && _isSameDay(routine.lastCompleted!, now);
+    final updated = routine.copyWith(
+      streak: sameDay ? routine.streak : routine.streak + 1,
+      lastCompleted: now,
+      scheduledFor: now.add(const Duration(days: 2)),
+    );
+    _recoveryRoutines[index] = updated;
+    _persistRecovery();
+    notifyListeners();
+  }
+
   static List<InbodyMeasurement> _seedInbodyHistory(List<String>? cache) {
     if (cache != null && cache.isNotEmpty) {
       return cache
@@ -595,6 +745,186 @@ class ProfileController extends ChangeNotifier {
     ];
   }
 
+  static MacroTargets _seedMacroTargets(SharedPreferences prefs) {
+    return MacroTargets(
+      calories: prefs.getInt('macro_calories') ?? 2100,
+      protein: prefs.getInt('macro_protein') ?? 135,
+      carbs: prefs.getInt('macro_carbs') ?? 240,
+      fats: prefs.getInt('macro_fats') ?? 60,
+    );
+  }
+
+  static List<NutritionLog> _seedNutritionLogs(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 7)
+          .map(
+            (parts) => NutritionLog(
+              timestamp: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              mealType: parts[1],
+              calories: int.tryParse(parts[2]) ?? 0,
+              protein: int.tryParse(parts[3]) ?? 0,
+              carbs: int.tryParse(parts[4]) ?? 0,
+              fats: int.tryParse(parts[5]) ?? 0,
+              mood: parts[6].isEmpty ? null : parts[6],
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return [
+      NutritionLog(
+        timestamp: now.subtract(const Duration(hours: 1)),
+        mealType: 'Recovery bowl',
+        calories: 540,
+        protein: 42,
+        carbs: 52,
+        fats: 18,
+        mood: 'Focused',
+      ),
+      NutritionLog(
+        timestamp: now.subtract(const Duration(hours: 5)),
+        mealType: 'Green smoothie',
+        calories: 320,
+        protein: 25,
+        carbs: 30,
+        fats: 8,
+        mood: 'Energised',
+      ),
+      NutritionLog(
+        timestamp: now.subtract(const Duration(hours: 9)),
+        mealType: 'Overnight oats',
+        calories: 410,
+        protein: 28,
+        carbs: 46,
+        fats: 12,
+        mood: 'Balanced',
+      ),
+    ];
+  }
+
+  static List<SleepRecord> _seedSleepRecords(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 4)
+          .map(
+            (parts) => SleepRecord(
+              date: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              hours: double.tryParse(parts[1]) ?? 7.2,
+              quality: int.tryParse(parts[2]) ?? 80,
+              readinessImpact: int.tryParse(parts[3]) ?? 76,
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return List.generate(5, (index) {
+      final date = now.subtract(Duration(days: index));
+      return SleepRecord(
+        date: date,
+        hours: 7.1 + (index.isEven ? 0.3 : -0.2),
+        quality: 82 + (index * 2),
+        readinessImpact: 78 + (index.isEven ? 3 : -2),
+      );
+    });
+  }
+
+  static List<MindfulnessSession> _seedMindfulnessSessions(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 4)
+          .map(
+            (parts) => MindfulnessSession(
+              date: DateTime.tryParse(parts[0]) ?? DateTime.now(),
+              durationMinutes: int.tryParse(parts[1]) ?? 5,
+              technique: parts[2],
+              moodAfter: parts[3],
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return [
+      MindfulnessSession(
+        date: now.subtract(const Duration(hours: 3)),
+        durationMinutes: 8,
+        technique: 'Box breathing',
+        moodAfter: 'Calm',
+      ),
+      MindfulnessSession(
+        date: now.subtract(const Duration(days: 1, hours: 1)),
+        durationMinutes: 5,
+        technique: 'Body scan',
+        moodAfter: 'Present',
+      ),
+      MindfulnessSession(
+        date: now.subtract(const Duration(days: 2, hours: 4)),
+        durationMinutes: 10,
+        technique: 'Visualization',
+        moodAfter: 'Motivated',
+      ),
+    ];
+  }
+
+  static List<RecoveryRoutine> _seedRecoveryRoutines(List<String>? cache) {
+    if (cache != null && cache.isNotEmpty) {
+      return cache
+          .map((entry) => entry.split('|'))
+          .where((parts) => parts.length == 8)
+          .map(
+            (parts) => RecoveryRoutine(
+              id: parts[0],
+              title: parts[1],
+              focus: parts[2],
+              durationMinutes: int.tryParse(parts[3]) ?? 0,
+              equipment: parts[4],
+              streak: int.tryParse(parts[5]) ?? 0,
+              lastCompleted:
+                  parts[6].isEmpty ? null : DateTime.tryParse(parts[6]),
+              scheduledFor:
+                  parts[7].isEmpty ? null : DateTime.tryParse(parts[7]),
+            ),
+          )
+          .toList();
+    }
+    final now = DateTime.now();
+    return [
+      RecoveryRoutine(
+        id: 'recover_mobility',
+        title: 'Mobility unwind',
+        focus: 'Mobility',
+        durationMinutes: 12,
+        equipment: 'Mat',
+        streak: 3,
+        lastCompleted: now.subtract(const Duration(days: 1)),
+        scheduledFor: now.add(const Duration(days: 1)),
+      ),
+      RecoveryRoutine(
+        id: 'recover_cold',
+        title: 'Contrast shower',
+        focus: 'Circulation',
+        durationMinutes: 9,
+        equipment: 'Home',
+        streak: 1,
+        lastCompleted: now.subtract(const Duration(days: 2)),
+        scheduledFor: now.add(const Duration(days: 2)),
+      ),
+      RecoveryRoutine(
+        id: 'recover_breathe',
+        title: 'Breathing ladder',
+        focus: 'Parasympathetic',
+        durationMinutes: 7,
+        equipment: 'None',
+        streak: 5,
+        lastCompleted: now.subtract(const Duration(hours: 20)),
+        scheduledFor: now.add(const Duration(hours: 20)),
+      ),
+    ];
+  }
+
   void _persistProfile() {
     _prefs
       ..setString('user_displayName', _profile.name)
@@ -775,6 +1105,85 @@ class ProfileController extends ChangeNotifier {
                   e.badge,
                   e.achieved ? '1' : '0',
                   e.achievedOn?.toIso8601String() ?? '',
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistMacroTargets() {
+    _prefs
+      ..setInt('macro_calories', _macroTargets.calories)
+      ..setInt('macro_protein', _macroTargets.protein)
+      ..setInt('macro_carbs', _macroTargets.carbs)
+      ..setInt('macro_fats', _macroTargets.fats);
+  }
+
+  void _persistNutrition() {
+    _prefs.setStringList(
+      'user_nutrition_logs',
+      _nutritionLogs
+          .map(
+            (log) => [
+                  log.timestamp.toIso8601String(),
+                  log.mealType,
+                  log.calories.toString(),
+                  log.protein.toString(),
+                  log.carbs.toString(),
+                  log.fats.toString(),
+                  log.mood ?? '',
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistSleep() {
+    _prefs.setStringList(
+      'user_sleep_records',
+      _sleepRecords
+          .map(
+            (record) => [
+                  record.date.toIso8601String(),
+                  record.hours.toStringAsFixed(1),
+                  record.quality.toString(),
+                  record.readinessImpact.toString(),
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistMindfulness() {
+    _prefs.setStringList(
+      'user_mindfulness_sessions',
+      _mindfulnessSessions
+          .map(
+            (session) => [
+                  session.date.toIso8601String(),
+                  session.durationMinutes.toString(),
+                  session.technique,
+                  session.moodAfter,
+                ].join('|'),
+          )
+          .toList(),
+    );
+  }
+
+  void _persistRecovery() {
+    _prefs.setStringList(
+      'user_recovery_routines',
+      _recoveryRoutines
+          .map(
+            (routine) => [
+                  routine.id,
+                  routine.title,
+                  routine.focus,
+                  routine.durationMinutes.toString(),
+                  routine.equipment,
+                  routine.streak.toString(),
+                  routine.lastCompleted?.toIso8601String() ?? '',
+                  routine.scheduledFor?.toIso8601String() ?? '',
                 ].join('|'),
           )
           .toList(),

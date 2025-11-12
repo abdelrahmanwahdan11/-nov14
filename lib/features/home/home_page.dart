@@ -15,9 +15,12 @@ import '../help/help_page.dart';
 import '../insights/performance_insights_page.dart';
 import '../paywall/paywall_page.dart';
 import '../plans/plans_page.dart';
+import '../profile/profile_controller.dart';
 import '../profile/profile_page.dart';
 import '../search/search_page.dart';
+import '../shared/app_state.dart';
 import '../train/train_page.dart';
+import '../wellness/wellness_studio_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -134,6 +137,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final state = AppStateScope.of(context);
+    final profileController = state.profileController;
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: _handleRefresh,
@@ -427,6 +432,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.spa_outlined,
+                            label: strings.t('wellnessStudio'),
+                            onTap: () => Navigator.pushNamed(context, WellnessStudioPage.route),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.groups_outlined,
+                            label: strings.t('community'),
+                            onTap: () => Navigator.pushNamed(context, CommunityPage.route),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 24),
                     Wrap(
                       spacing: 12,
@@ -436,6 +461,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         MetricChip(icon: Icons.favorite_outline, label: 'HRV', value: '78 ms'),
                         MetricChip(icon: Icons.show_chart, label: 'Load', value: 'Moderate'),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+                    AnimatedBuilder(
+                      animation: profileController,
+                      builder: (context, _) {
+                        return _WellnessSnapshot(
+                          strings: strings,
+                          controller: profileController,
+                          onOpen: () => Navigator.pushNamed(context, WellnessStudioPage.route),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -472,6 +508,180 @@ class _AdaptiveNav extends StatelessWidget {
         BottomNavigationBarItem(icon: const Icon(Icons.groups_2_rounded), label: strings.t('community')),
         BottomNavigationBarItem(icon: const Icon(Icons.person_outline), label: strings.t('profile')),
       ],
+    );
+  }
+}
+
+class _WellnessSnapshot extends StatelessWidget {
+  const _WellnessSnapshot({
+    required this.strings,
+    required this.controller,
+    required this.onOpen,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final macroProgress = controller.macroProgressToday;
+    final sleepConsistency = controller.sleepConsistencyScore;
+    final mindfulness = controller.mindfulnessMinutesWeek;
+    final recoveryStreak = controller.bestRecoveryStreak;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withOpacity(.16),
+            theme.colorScheme.primary.withOpacity(.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  strings.t('wellnessHighlights'),
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.spa_outlined),
+                label: Text(strings.t('openWellnessStudio')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _MacroRow(
+            label: strings.t('protein'),
+            value: macroProgress['protein'] ?? 0.0,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 8),
+          _MacroRow(
+            label: strings.t('carbs'),
+            value: macroProgress['carbs'] ?? 0.0,
+            color: theme.colorScheme.secondary,
+          ),
+          const SizedBox(height: 8),
+          _MacroRow(
+            label: strings.t('fats'),
+            value: macroProgress['fats'] ?? 0.0,
+            color: theme.colorScheme.tertiary ?? theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _SnapshotStat(
+                  title: strings.t('sleepConsistency'),
+                  value: '${(sleepConsistency * 100).toStringAsFixed(0)}%',
+                  icon: Icons.nights_stay_outlined,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SnapshotStat(
+                  title: strings.t('mindfulnessMinutes'),
+                  value: '${mindfulness.toStringAsFixed(0)} ${strings.t('minutes')}',
+                  icon: Icons.self_improvement_outlined,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SnapshotStat(
+                  title: strings.t('recoveryStreak'),
+                  value: '${recoveryStreak} ${strings.t('daysUnit')}',
+                  icon: Icons.track_changes_outlined,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MacroRow extends StatelessWidget {
+  const _MacroRow({required this.label, required this.value, required this.color});
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 8,
+            value: value.clamp(0.0, 1.2),
+            backgroundColor: theme.colorScheme.surface.withOpacity(.2),
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SnapshotStat extends StatelessWidget {
+  const _SnapshotStat({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(.8),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 24, color: theme.colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(title, style: theme.textTheme.bodySmall),
+        ],
+      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../core/widgets/metric_chip.dart';
 import '../../data/models/user_profile.dart';
 import '../shared/app_state.dart';
 import '../insights/performance_insights_page.dart';
+import '../wellness/wellness_studio_page.dart';
 import 'profile_controller.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -115,6 +116,12 @@ class ProfilePage extends StatelessWidget {
                         strings: strings,
                         controller: state.profileController,
                         onLogHydration: (amount) => state.profileController.logHydration(amount),
+                      ),
+                      const SizedBox(height: 20),
+                      _WellnessStudioPreviewCard(
+                        strings: strings,
+                        controller: state.profileController,
+                        onOpen: () => Navigator.pushNamed(context, WellnessStudioPage.route),
                       ),
                       const SizedBox(height: 20),
                       _PerformanceInsightsPreview(
@@ -1143,6 +1150,146 @@ class _HydrationCoachCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WellnessStudioPreviewCard extends StatelessWidget {
+  const _WellnessStudioPreviewCard({
+    required this.strings,
+    required this.controller,
+    required this.onOpen,
+  });
+
+  final AppLocalizations strings;
+  final ProfileController controller;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final macroProgress = controller.macroProgressToday;
+    final sleepConsistency = controller.sleepConsistencyScore;
+    final mindfulness = controller.mindfulnessMinutesWeek;
+    final recovery = controller.bestRecoveryStreak;
+    final latestMeal = controller.latestMeal;
+    final proteinPercent = ((macroProgress['protein'] ?? 0.0) * 100).clamp(0, 140);
+    final sleepPercent = (sleepConsistency * 100).clamp(0, 100);
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    strings.t('wellnessStudio'),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new),
+                ),
+              ],
+            ),
+            if (latestMeal != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${strings.t('latestMeal')}: ${latestMeal.mealType}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                '${latestMeal.calories} kcal · ${latestMeal.protein}P/${latestMeal.carbs}C/${latestMeal.fats}F',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.restaurant_outlined,
+                    label: strings.t('macroBalance'),
+                    value: '${proteinPercent.toStringAsFixed(0)}%',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.nights_stay_outlined,
+                    label: strings.t('sleepConsistency'),
+                    value: '${sleepPercent.toStringAsFixed(0)}%',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.self_improvement_outlined,
+                    label: strings.t('mindfulnessMinutes'),
+                    value: '${mindfulness.toStringAsFixed(0)} ${strings.t('minutes')}',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.track_changes_outlined,
+                    label: strings.t('recoveryStreak'),
+                    value: '${recovery} ${strings.t('daysUnit')}',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.spa_outlined),
+              label: Text(strings.t('openWellnessStudio')),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.icon, required this.label, required this.value});
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: theme.colorScheme.surfaceVariant.withOpacity(.3),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 22, color: theme.colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(label, style: theme.textTheme.bodySmall),
+        ],
       ),
     );
   }

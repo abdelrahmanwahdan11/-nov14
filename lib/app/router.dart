@@ -17,6 +17,7 @@ import '../features/profile/profile_page.dart';
 import '../features/search/search_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/train/train_page.dart';
+import '../features/wellness/wellness_studio_page.dart';
 import '../data/models/catalog_item.dart';
 
 class AppRouter {
@@ -67,6 +68,9 @@ class AppRouter {
         break;
       case ActivityPage.route:
         builder = const ActivityPage();
+        break;
+      case WellnessStudioPage.route:
+        builder = const WellnessStudioPage();
         break;
       case HomePage.route:
       default:
