@@ -7,6 +7,7 @@ import 'package:iconly/iconly.dart';
 import '../../app/localization.dart';
 import '../../core/widgets/hero_card.dart';
 import '../../core/widgets/metric_chip.dart';
+import '../../core/widgets/mini_sparkline.dart';
 import '../../core/widgets/skeleton_box.dart';
 import '../activity/activity_page.dart';
 import '../catalog/catalog_page.dart';
@@ -35,13 +36,16 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late final PageController _heroController;
   late final AnimationController _pulseController;
+  late final PageController _momentumController;
   final ValueNotifier<int> _focusIndex = ValueNotifier<int>(0);
+  final ValueNotifier<int> _momentumIndex = ValueNotifier<int>(0);
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _hydrationNotifier = ValueNotifier<double>(0.58);
   final ValueNotifier<double> _readinessNotifier = ValueNotifier<double>(0.74);
   final StreamController<_LiveStat> _liveStats = StreamController<_LiveStat>.broadcast();
   Timer? _heroTimer;
   Timer? _metricsTimer;
+  Timer? _momentumTimer;
   bool _loading = true;
 
   final List<_HeroStory> _stories = const [
@@ -71,13 +75,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _UpcomingSession(title: 'Strength power', subtitle: '19:00 · Gym', duration: 45, focus: 'Power'),
   ];
 
+  final List<_MomentumCardData> _momentumCards = const [
+    _MomentumCardData(
+      titleKey: 'momentumCardCardioTitle',
+      subtitleKey: 'momentumCardCardioSubtitle',
+      focusKey: 'cardio',
+      icon: IconlyBold.activity,
+      sparkline: [0.22, 0.46, 0.52, 0.68, 0.61, 0.75, 0.82],
+    ),
+    _MomentumCardData(
+      titleKey: 'momentumCardMobilityTitle',
+      subtitleKey: 'momentumCardMobilitySubtitle',
+      focusKey: 'mobility',
+      icon: IconlyBold.work,
+      sparkline: [0.12, 0.16, 0.28, 0.42, 0.58, 0.63, 0.71],
+    ),
+    _MomentumCardData(
+      titleKey: 'momentumCardRecoveryTitle',
+      subtitleKey: 'momentumCardRecoverySubtitle',
+      focusKey: 'recovery',
+      icon: IconlyBold.shield_done,
+      sparkline: [0.08, 0.18, 0.24, 0.36, 0.28, 0.22, 0.31],
+    ),
+  ];
+
+  final List<List<double>> _momentumHeatmap = const [
+    [0.2, 0.6, 0.75, 0.0, 0.35, 0.58, 0.82],
+    [0.12, 0.46, 0.54, 0.68, 0.0, 0.32, 0.48],
+    [0.18, 0.28, 0.62, 0.74, 0.58, 0.0, 0.27],
+  ];
+
   @override
   void initState() {
     super.initState();
     _heroController = PageController(viewportFraction: 0.88);
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))
       ..repeat(reverse: true);
+    _momentumController = PageController(viewportFraction: 0.78);
     _startHeroAutoPlay();
+    _startMomentumAutoPlay();
     _seedLiveStats();
     Future.delayed(const Duration(milliseconds: 640), () {
       if (mounted) setState(() => _loading = false);
@@ -112,13 +148,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
+  void _startMomentumAutoPlay() {
+    _momentumTimer?.cancel();
+    _momentumTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
+      if (!_momentumController.hasClients) return;
+      final current = _momentumController.page ?? _momentumController.initialPage.toDouble();
+      final next = (current.round() + 1) % _momentumCards.length;
+      _momentumController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 620),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   @override
   void dispose() {
     _heroTimer?.cancel();
     _metricsTimer?.cancel();
+    _momentumTimer?.cancel();
     _heroController.dispose();
     _pulseController.dispose();
+    _momentumController.dispose();
     _focusIndex.dispose();
+    _momentumIndex.dispose();
     _scrollController.dispose();
     _hydrationNotifier.dispose();
     _readinessNotifier.dispose();
@@ -275,9 +328,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: _MomentumLabSection(
+                strings: strings,
+                controller: _momentumController,
+                cards: _momentumCards,
+                activeIndex: _momentumIndex,
+                heatmap: _momentumHeatmap,
+                loading: _loading,
+                onOpenPlans: () => Navigator.pushNamed(context, PlansPage.route),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     Text(strings.t('dailyFocus'), style: theme.textTheme.titleLarge),
                     const SizedBox(height: 12),
                     _loading
@@ -486,6 +553,380 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
       bottomNavigationBar: _AdaptiveNav(strings: strings),
+    );
+  }
+}
+
+class _MomentumLabSection extends StatelessWidget {
+  const _MomentumLabSection({
+    required this.strings,
+    required this.controller,
+    required this.cards,
+    required this.activeIndex,
+    required this.heatmap,
+    required this.loading,
+    required this.onOpenPlans,
+  });
+
+  final AppLocalizations strings;
+  final PageController controller;
+  final List<_MomentumCardData> cards;
+  final ValueNotifier<int> activeIndex;
+  final List<List<double>> heatmap;
+  final bool loading;
+  final VoidCallback onOpenPlans;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(strings.t('momentumLab'), style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.t('momentumLabSubtitle'),
+                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onOpenPlans,
+              icon: const Icon(Icons.auto_graph_rounded),
+              label: Text(strings.t('momentumOpenBriefing')),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (loading)
+          const SkeletonBox(height: 220)
+        else
+          SizedBox(
+            height: 220,
+            child: PageView.builder(
+              controller: controller,
+              onPageChanged: (value) => activeIndex.value = value,
+              itemCount: cards.length,
+              physics: const BouncingScrollPhysics(),
+              itemBuilder: (context, index) {
+                final card = cards[index];
+                return ValueListenableBuilder<int>(
+                  valueListenable: activeIndex,
+                  builder: (context, active, _) {
+                    final bool isActive = active == index;
+                    return AnimatedBuilder(
+                      animation: controller,
+                      builder: (context, child) {
+                        final page = controller.hasClients
+                            ? controller.page ?? controller.initialPage.toDouble()
+                            : controller.initialPage.toDouble();
+                        final delta = (index - page).clamp(-1.0, 1.0);
+                        final scale = 1 - delta.abs() * 0.08;
+                        final offset = delta * 18;
+                        return Transform.translate(
+                          offset: Offset(offset, delta.abs() * 12),
+                          child: Transform.scale(
+                            scale: scale.clamp(0.9, 1.0),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _MomentumCard(
+                        data: card,
+                        strings: strings,
+                        active: isActive,
+                        onTap: onOpenPlans,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 12),
+        if (!loading)
+          ValueListenableBuilder<int>(
+            valueListenable: activeIndex,
+            builder: (context, active, _) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (int i = 0; i < cards.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 280),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 6,
+                      width: i == active ? 30 : 12,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(i == active ? 0.9 : 0.25),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        if (!loading)
+          const SizedBox(height: 28)
+        else
+          const SizedBox(height: 20),
+        _IntensityHeatmap(
+          strings: strings,
+          heatmap: heatmap,
+          loading: loading,
+        ),
+      ],
+    );
+  }
+}
+
+class _MomentumCardData {
+  const _MomentumCardData({
+    required this.titleKey,
+    required this.subtitleKey,
+    required this.focusKey,
+    required this.icon,
+    required this.sparkline,
+  });
+
+  final String titleKey;
+  final String subtitleKey;
+  final String focusKey;
+  final IconData icon;
+  final List<double> sparkline;
+}
+
+class _MomentumCard extends StatelessWidget {
+  const _MomentumCard({
+    required this.data,
+    required this.strings,
+    required this.active,
+    required this.onTap,
+  });
+
+  final _MomentumCardData data;
+  final AppLocalizations strings;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final surface = theme.colorScheme.surface;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            primary.withOpacity(active ? 0.32 : 0.18),
+            primary.withOpacity(0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(active ? 0.22 : 0.1),
+            blurRadius: active ? 32 : 18,
+            offset: const Offset(0, 16),
+          ),
+        ],
+        border: Border.all(color: primary.withOpacity(active ? 0.35 : 0.18)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: surface.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(data.icon, color: primary),
+              ),
+              const SizedBox(height: 18),
+              Text(strings.t(data.titleKey), style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                strings.t(data.subtitleKey),
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.72)),
+              ),
+              const Spacer(),
+              Text(
+                '${strings.t('focusOn')} ${strings.t(data.focusKey)}',
+                style: theme.textTheme.labelMedium?.copyWith(color: primary),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 72,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: MiniSparkline(
+                    values: data.sparkline,
+                    lineColor: primary,
+                    fillColor: primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IntensityHeatmap extends StatelessWidget {
+  const _IntensityHeatmap({
+    required this.strings,
+    required this.heatmap,
+    required this.loading,
+  });
+
+  final AppLocalizations strings;
+  final List<List<double>> heatmap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (loading) {
+      return const SkeletonBox(height: 148);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(strings.t('momentumHeatmap'), style: theme.textTheme.titleMedium),
+        const SizedBox(height: 6),
+        Text(
+          strings.t('momentumHeatmapSubtitle'),
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.textTheme.bodySmall?.color?.withOpacity(0.7)),
+        ),
+        const SizedBox(height: 18),
+        Column(
+          children: [
+            for (int week = 0; week < heatmap.length; week++)
+              Padding(
+                padding: EdgeInsets.only(bottom: week == heatmap.length - 1 ? 0 : 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 72,
+                      child: Text(
+                        '${strings.t('momentumWeekPrefix')} ${week + 1}',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (int day = 0; day < heatmap[week].length; day++)
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: _HeatmapCell(value: heatmap[week][day]),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            _HeatmapLegendEntry(
+              color: _HeatmapCell.colorForValue(context, 0.0),
+              label: strings.t('momentumHeatmapRest'),
+            ),
+            const SizedBox(width: 16),
+            _HeatmapLegendEntry(
+              color: _HeatmapCell.colorForValue(context, 0.35),
+              label: strings.t('momentumHeatmapLow'),
+            ),
+            const SizedBox(width: 16),
+            _HeatmapLegendEntry(
+              color: _HeatmapCell.colorForValue(context, 0.85),
+              label: strings.t('momentumHeatmapHigh'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _HeatmapCell extends StatelessWidget {
+  const _HeatmapCell({required this.value});
+
+  final double value;
+
+  static Color colorForValue(BuildContext context, double value) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final surfaceVariant = theme.colorScheme.surfaceVariant;
+    if (value <= 0.01) {
+      return surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.42 : 0.32);
+    }
+    return Color.lerp(surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.3 : 0.15), primary, value.clamp(0.0, 1.0))!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = colorForValue(context, value);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 320),
+      height: 26,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.4), width: 0.8),
+      ),
+    );
+  }
+}
+
+class _HeatmapLegendEntry extends StatelessWidget {
+  const _HeatmapLegendEntry({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: theme.textTheme.labelSmall),
+      ],
     );
   }
 }
