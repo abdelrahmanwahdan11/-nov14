@@ -11,8 +11,11 @@ import '../../core/widgets/skeleton_box.dart';
 import '../activity/activity_page.dart';
 import '../catalog/catalog_page.dart';
 import '../community/community_page.dart';
+import '../help/help_page.dart';
+import '../paywall/paywall_page.dart';
 import '../plans/plans_page.dart';
 import '../profile/profile_page.dart';
+import '../search/search_page.dart';
 import '../train/train_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -148,6 +151,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(strings.t('home')),
               ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.search_rounded),
+                  onPressed: () => Navigator.pushNamed(context, SearchPage.route),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.workspace_premium_outlined),
+                  onPressed: () => Navigator.pushNamed(context, PaywallPage.route),
+                ),
+              ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Padding(
                   padding: const EdgeInsets.only(top: kToolbarHeight + 24, bottom: 32),
@@ -201,11 +214,56 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     );
                   },
                 ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Hero(
+                tag: 'global-search-field',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => Navigator.pushNamed(context, SearchPage.route),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.shadowColor.withOpacity(.06),
+                            blurRadius: 18,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.search_rounded),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              strings.t('searchHint'),
+                              style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+                            ),
+                          ),
+                          Text(
+                            strings.t('advancedSearch'),
+                            style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -324,6 +382,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             icon: Icons.flash_on_rounded,
                             label: strings.t('startQuickSession'),
                             onTap: () => Navigator.pushNamed(context, CatalogPage.route),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.workspace_premium_rounded,
+                            label: strings.t('unlockPro'),
+                            onTap: () => Navigator.pushNamed(context, PaywallPage.route),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.help_outline_rounded,
+                            label: strings.t('helpCenter'),
+                            onTap: () => Navigator.pushNamed(context, HelpPage.route),
                           ),
                         ),
                       ],

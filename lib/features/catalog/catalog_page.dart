@@ -8,6 +8,7 @@ import '../../core/widgets/skeleton_box.dart';
 import '../../data/models/catalog_item.dart';
 import '../compare/compare_page.dart';
 import '../shared/app_state.dart';
+import 'catalog_detail_page.dart';
 import 'widgets/catalog_filters_sheet.dart';
 
 class CatalogPage extends StatefulWidget {
@@ -142,6 +143,11 @@ class _CatalogPageState extends State<CatalogPage> {
                                     _compare.value = copy;
                                   }
                                 },
+                                onOpenDetail: () => Navigator.pushNamed(
+                                  context,
+                                  CatalogDetailPage.route,
+                                  arguments: item,
+                                ),
                               );
                             },
                           );
@@ -183,17 +189,24 @@ class _CatalogPageState extends State<CatalogPage> {
 }
 
 class _CatalogCard extends StatelessWidget {
-  const _CatalogCard({required this.item, required this.onSelected, required this.selected});
+  const _CatalogCard({
+    required this.item,
+    required this.onSelected,
+    required this.selected,
+    required this.onOpenDetail,
+  });
 
   final CatalogItem item;
   final ValueChanged<bool> onSelected;
   final bool selected;
+  final VoidCallback onOpenDetail;
 
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
     return GestureDetector(
-      onTap: () => onSelected(!selected),
+      onTap: onOpenDetail,
+      onLongPress: () => onSelected(!selected),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         decoration: BoxDecoration(
@@ -217,7 +230,10 @@ class _CatalogCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(item.imageUrl, fit: BoxFit.cover),
+                    Hero(
+                      tag: 'catalog-${item.id}',
+                      child: Image.network(item.imageUrl, fit: BoxFit.cover),
+                    ),
                     Positioned(top: 8, right: 8, child: AiInfoButton()),
                   ],
                 ),

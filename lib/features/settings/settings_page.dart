@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../app/localization.dart';
 import '../../app/theme.dart';
+import '../help/help_page.dart';
+import '../paywall/paywall_page.dart';
 import '../shared/app_state.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -94,6 +96,19 @@ class _SettingsPageState extends State<SettingsPage> {
           ListTile(title: Text(strings.t('units')), subtitle: Text(strings.t('metric'))),
           SwitchListTile(title: Text(strings.t('notifications')), value: true, onChanged: (_) {}),
           ListTile(title: Text(strings.t('privacy'))),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.workspace_premium_rounded),
+            title: Text(strings.t('fitProPlus')),
+            subtitle: Text(strings.t('unlockProSubtitle')),
+            onTap: () => Navigator.pushNamed(context, PaywallPage.route),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline_rounded),
+            title: Text(strings.t('helpCenter')),
+            subtitle: Text(strings.t('needSupportBody')),
+            onTap: () => Navigator.pushNamed(context, HelpPage.route),
+          ),
         ],
       ),
     );
