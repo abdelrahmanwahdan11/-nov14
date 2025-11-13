@@ -14,6 +14,7 @@ import '../features/onboarding/onboarding_page.dart';
 import '../features/paywall/paywall_page.dart';
 import '../features/plans/plans_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/programs/adaptive_program_page.dart';
 import '../features/search/search_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/train/train_page.dart';
@@ -53,6 +54,9 @@ class AppRouter {
         break;
       case PerformanceInsightsPage.route:
         builder = const PerformanceInsightsPage();
+        break;
+      case AdaptiveProgramPage.route:
+        builder = const AdaptiveProgramPage();
         break;
       case ProfilePage.route:
         builder = const ProfilePage();

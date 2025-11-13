@@ -16,6 +16,7 @@ import '../help/help_page.dart';
 import '../insights/performance_insights_page.dart';
 import '../paywall/paywall_page.dart';
 import '../plans/plans_page.dart';
+import '../programs/adaptive_program_page.dart';
 import '../profile/profile_controller.dart';
 import '../profile/profile_page.dart';
 import '../search/search_page.dart';
@@ -520,6 +521,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             icon: Icons.groups_outlined,
                             label: strings.t('community'),
                             onTap: () => Navigator.pushNamed(context, CommunityPage.route),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.auto_mode_rounded,
+                            label: strings.t('adaptiveProgramBuilderAction'),
+                            onTap: () => Navigator.pushNamed(context, AdaptiveProgramPage.route),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _ActionCard(
+                            icon: Icons.timeline_rounded,
+                            label: strings.t('plans'),
+                            onTap: () => Navigator.pushNamed(context, PlansPage.route),
                           ),
                         ),
                       ],
