@@ -1,0 +1,352 @@
+class UserProfile {
+  const UserProfile({
+    required this.name,
+    required this.email,
+    required this.memberSince,
+    this.age,
+    this.gender,
+    this.heightCm,
+    this.weightKg,
+    this.goal,
+    this.lastInbodySync,
+    this.restingHeartRate,
+    this.vo2Max,
+    this.sleepGoalHours,
+    this.hydrationGoalLiters,
+    this.bodyAge,
+    this.focusArea,
+  });
+
+  final String name;
+  final String email;
+  final DateTime memberSince;
+  final int? age;
+  final String? gender;
+  final int? heightCm;
+  final double? weightKg;
+  final String? goal;
+  final DateTime? lastInbodySync;
+  final int? restingHeartRate;
+  final double? vo2Max;
+  final double? sleepGoalHours;
+  final double? hydrationGoalLiters;
+  final double? bodyAge;
+  final String? focusArea;
+
+  UserProfile copyWith({
+    String? name,
+    String? email,
+    DateTime? memberSince,
+    int? age,
+    String? gender,
+    int? heightCm,
+    double? weightKg,
+    String? goal,
+    DateTime? lastInbodySync,
+    int? restingHeartRate,
+    double? vo2Max,
+    double? sleepGoalHours,
+    double? hydrationGoalLiters,
+    double? bodyAge,
+    String? focusArea,
+  }) {
+    return UserProfile(
+      name: name ?? this.name,
+      email: email ?? this.email,
+      memberSince: memberSince ?? this.memberSince,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
+      goal: goal ?? this.goal,
+      lastInbodySync: lastInbodySync ?? this.lastInbodySync,
+      restingHeartRate: restingHeartRate ?? this.restingHeartRate,
+      vo2Max: vo2Max ?? this.vo2Max,
+      sleepGoalHours: sleepGoalHours ?? this.sleepGoalHours,
+      hydrationGoalLiters: hydrationGoalLiters ?? this.hydrationGoalLiters,
+      bodyAge: bodyAge ?? this.bodyAge,
+      focusArea: focusArea ?? this.focusArea,
+    );
+  }
+}
+
+class InbodyMeasurement {
+  const InbodyMeasurement({
+    required this.date,
+    required this.weightKg,
+    required this.bodyFatPercentage,
+    required this.skeletalMuscleKg,
+    required this.bodyWaterPercentage,
+    required this.basalMetabolicRate,
+    required this.visceralFatLevel,
+    required this.bmi,
+    this.notes,
+  });
+
+  final DateTime date;
+  final double weightKg;
+  final double bodyFatPercentage;
+  final double skeletalMuscleKg;
+  final double bodyWaterPercentage;
+  final double basalMetabolicRate;
+  final double visceralFatLevel;
+  final double bmi;
+  final String? notes;
+}
+
+class LoginRecord {
+  const LoginRecord({
+    required this.timestamp,
+    required this.method,
+    required this.device,
+    required this.successful,
+  });
+
+  final DateTime timestamp;
+  final String method;
+  final String device;
+  final bool successful;
+}
+
+class ProfileJournalEntry {
+  const ProfileJournalEntry({
+    required this.date,
+    required this.template,
+    required this.tags,
+    required this.energyLevel,
+    required this.effortLevel,
+    this.synced = true,
+  });
+
+  final DateTime date;
+  final String template;
+  final List<String> tags;
+  final int energyLevel;
+  final int effortLevel;
+  final bool synced;
+}
+
+class ReadinessSnapshot {
+  const ReadinessSnapshot({
+    required this.date,
+    required this.score,
+    required this.sleepHours,
+    required this.hrv,
+    required this.restingHeartRate,
+  });
+
+  final DateTime date;
+  final int score;
+  final double sleepHours;
+  final double hrv;
+  final int restingHeartRate;
+}
+
+class HydrationLog {
+  const HydrationLog({
+    required this.date,
+    required this.liters,
+  });
+
+  HydrationLog copyWith({DateTime? date, double? liters}) {
+    return HydrationLog(
+      date: date ?? this.date,
+      liters: liters ?? this.liters,
+    );
+  }
+
+  final DateTime date;
+  final double liters;
+}
+
+class PerformanceTrend {
+  const PerformanceTrend({
+    required this.metric,
+    required this.points,
+    required this.weekChange,
+    required this.monthChange,
+    required this.lastUpdated,
+  });
+
+  final String metric;
+  final List<TrendPoint> points;
+  final double weekChange;
+  final double monthChange;
+  final DateTime lastUpdated;
+
+  PerformanceTrend copyWith({
+    List<TrendPoint>? points,
+    double? weekChange,
+    double? monthChange,
+    DateTime? lastUpdated,
+  }) {
+    return PerformanceTrend(
+      metric: metric,
+      points: points ?? this.points,
+      weekChange: weekChange ?? this.weekChange,
+      monthChange: monthChange ?? this.monthChange,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+}
+
+class TrendPoint {
+  const TrendPoint({
+    required this.date,
+    required this.value,
+  });
+
+  final DateTime date;
+  final double value;
+}
+
+class PerformanceMilestone {
+  const PerformanceMilestone({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.scheduledFor,
+    required this.badge,
+    this.achieved = false,
+    this.achievedOn,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final DateTime scheduledFor;
+  final String badge;
+  final bool achieved;
+  final DateTime? achievedOn;
+
+  PerformanceMilestone copyWith({
+    bool? achieved,
+    DateTime? achievedOn,
+    DateTime? scheduledFor,
+  }) {
+    return PerformanceMilestone(
+      id: id,
+      title: title,
+      description: description,
+      scheduledFor: scheduledFor ?? this.scheduledFor,
+      badge: badge,
+      achieved: achieved ?? this.achieved,
+      achievedOn: achievedOn ?? this.achievedOn,
+    );
+  }
+}
+
+class MacroTargets {
+  const MacroTargets({
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fats,
+  });
+
+  final int calories;
+  final int protein;
+  final int carbs;
+  final int fats;
+
+  MacroTargets copyWith({
+    int? calories,
+    int? protein,
+    int? carbs,
+    int? fats,
+  }) {
+    return MacroTargets(
+      calories: calories ?? this.calories,
+      protein: protein ?? this.protein,
+      carbs: carbs ?? this.carbs,
+      fats: fats ?? this.fats,
+    );
+  }
+}
+
+class NutritionLog {
+  const NutritionLog({
+    required this.timestamp,
+    required this.mealType,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fats,
+    this.mood,
+  });
+
+  final DateTime timestamp;
+  final String mealType;
+  final int calories;
+  final int protein;
+  final int carbs;
+  final int fats;
+  final String? mood;
+}
+
+class SleepRecord {
+  const SleepRecord({
+    required this.date,
+    required this.hours,
+    required this.quality,
+    required this.readinessImpact,
+  });
+
+  final DateTime date;
+  final double hours;
+  final int quality;
+  final int readinessImpact;
+}
+
+class MindfulnessSession {
+  const MindfulnessSession({
+    required this.date,
+    required this.durationMinutes,
+    required this.technique,
+    required this.moodAfter,
+  });
+
+  final DateTime date;
+  final int durationMinutes;
+  final String technique;
+  final String moodAfter;
+}
+
+class RecoveryRoutine {
+  const RecoveryRoutine({
+    required this.id,
+    required this.title,
+    required this.focus,
+    required this.durationMinutes,
+    required this.equipment,
+    required this.streak,
+    this.lastCompleted,
+    this.scheduledFor,
+  });
+
+  final String id;
+  final String title;
+  final String focus;
+  final int durationMinutes;
+  final String equipment;
+  final int streak;
+  final DateTime? lastCompleted;
+  final DateTime? scheduledFor;
+
+  RecoveryRoutine copyWith({
+    int? streak,
+    DateTime? lastCompleted,
+    DateTime? scheduledFor,
+  }) {
+    return RecoveryRoutine(
+      id: id,
+      title: title,
+      focus: focus,
+      durationMinutes: durationMinutes,
+      equipment: equipment,
+      streak: streak ?? this.streak,
+      lastCompleted: lastCompleted ?? this.lastCompleted,
+      scheduledFor: scheduledFor ?? this.scheduledFor,
+    );
+  }
+}
